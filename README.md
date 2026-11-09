@@ -2,7 +2,7 @@
 
 简体中文 | [English](README.en.md)
 
-DocuCraft 是一个开源的网页文档工作台，提供 AI 写作、扫描件文字识别、Word/PDF 导出和 PDF 编辑功能。项目由 Vue 3 网页前端和 Python/FastAPI 后端组成，适合希望自行部署、管理文档处理服务和 OCR 引擎的个人或团队。
+DocuCraft 是一个开源的网页文档工作台，提供 AI 写作、联网搜索、扫描件文字识别、Word/PDF 导出和 PDF 编辑功能。项目由 Vue 3/Vite 网页前端和 Python/FastAPI 后端组成；联网搜索使用 LangChain agent 编排模型工具调用，并通过 Tavily 搜索互联网。适合希望自行部署、管理文档处理服务和 OCR 引擎的个人或团队。
 
 [![CI](https://github.com/zhe-w12/iscan/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/zhe-w12/iscan/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
@@ -24,18 +24,31 @@ flowchart LR
     User[用户浏览器] --> Web[Vue 网页]
     Web --> API[FastAPI 后端]
     API --> OCR[你部署的 OCR HTTP 服务]
-    API --> AI[可选的 AI 模型服务]
+    API -->|普通 AI 请求| AI[兼容 OpenAI API 的模型服务]
+    API -->|开启联网搜索| Agent[LangChain agent]
+    Agent --> AI
+    Agent --> Tavily[Tavily 搜索 API]
     API --> Store[本地磁盘或对象存储]
 ```
 
 | 组件 | 主要职责 |
 | --- | --- |
 | `frontend/` | 网页界面、浏览器图片准备、PDF 编辑和 API 调用 |
-| `backend/` | API、OCR 服务适配、文档生成、文件存储与下载 |
+| `backend/` | FastAPI、OCR 服务适配、AI 请求、LangChain 联网搜索、文档生成、文件存储与下载 |
 | `deploy/` | Nginx 静态网页服务配置示例 |
 | `docs/` | 面向用户、开发者和部署者的详细指南 |
 
-网页不会直接连接 OCR 或 AI 服务。扫描图片由后端发送到 `OCR_ENDPOINT`；AI 对话文本由后端发送到你配置的模型服务。部署时请阅读[数据流与隐私说明](docs/architecture.md)，并只使用你信任的服务端点。
+网页不会直接连接 OCR 或 AI 服务。扫描图片由后端发送到 `OCR_ENDPOINT`；AI 对话文本由后端发送到你配置的模型服务，开启联网搜索时搜索词也会发送到 Tavily。部署时请阅读[数据流与隐私说明](docs/architecture.md)，并只使用你信任的服务端点。
+
+## 技术栈
+
+| 层 | 技术 |
+| --- | --- |
+| 网页 | Vue 3、Vite、JavaScript |
+| API 服务 | Python 3.13、FastAPI |
+| 常规 AI 对话 | 后端通过 `httpx` 调用 OpenAI-compatible Chat Completions API |
+| AI 联网搜索 | LangChain 1.x agent（`langchain`、`langchain-openai`）与 Tavily 工具（`langchain-tavily`） |
+| OCR | 部署者配置的 HTTP OCR 服务；生产环境使用 `generic_http` provider |
 
 ## 快速开始：本地开发
 

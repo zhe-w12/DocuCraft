@@ -2,7 +2,7 @@
 
 English | [简体中文](README.md)
 
-The DocuCraft backend uses FastAPI for browser APIs, OCR requests, document generation, file storage, and downloads. Production Compose uses `generic_http` and sends scans only to the OCR endpoint configured by the operator.
+The DocuCraft backend uses FastAPI for browser APIs, OCR requests, AI requests, document generation, file storage, and downloads. Regular AI chat calls an OpenAI-compatible Chat Completions API with `httpx`; web search uses a LangChain 1.x agent with `langchain-openai` and `langchain-tavily`. Production Compose does not choose an OCR service: it uses `generic_http` to send scans to the operator-configured `OCR_ENDPOINT`.
 
 ## Requirements
 
@@ -57,6 +57,8 @@ The backend reads `.env` from the repository root. Never copy `.env` or real cre
 `VITE_API_BASE_URL` is a frontend build variable, not a backend setting. See the [self-hosted OCR guide](../docs/self-hosted-ocr.en.md) for the OCR contract.
 
 ## AI web search
+
+Regular AI chat does not use LangChain; the backend calls the configured OpenAI-compatible Chat Completions API with `httpx`. When the user enables web search, the backend uses LangChain 1.x `create_agent` with `ChatOpenAI` and exposes Tavily search as an agent tool. Dependency constraints are listed in [`requirements.txt`](requirements.txt).
 
 Set `TAVILY_API_KEY` in the repository-root `.env` file and restart the backend. For Docker Compose, rebuild the backend image:
 

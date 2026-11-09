@@ -2,7 +2,7 @@
 
 简体中文 | [English](README.en.md)
 
-DocuCraft 后端基于 FastAPI，负责浏览器 API、OCR 服务调用、文档生成、文件保存和下载。它不会在生产环境自行选择第三方 OCR 服务：生产 Compose 使用 `generic_http`，由 `OCR_ENDPOINT` 指向部署者自己的 OCR 服务。
+DocuCraft 后端基于 FastAPI，负责浏览器 API、OCR 服务调用、AI 请求、文档生成、文件保存和下载。普通 AI 对话通过 `httpx` 调用 OpenAI-compatible Chat Completions API；启用联网搜索时使用 LangChain 1.x agent、`langchain-openai` 和 `langchain-tavily`。后端不会在生产环境自行选择第三方 OCR 服务：生产 Compose 使用 `generic_http`，由 `OCR_ENDPOINT` 指向部署者自己的 OCR 服务。
 
 ## 环境要求
 
@@ -57,6 +57,8 @@ python run.py
 前端构建变量 `VITE_API_BASE_URL` 不属于后端配置。更多 OCR 接口定义见[自建 OCR 接入指南](../docs/self-hosted-ocr.md)。
 
 ## AI 联网搜索
+
+普通 AI 对话不经过 LangChain；后端使用 `httpx` 请求配置的 OpenAI-compatible Chat Completions API。用户开启联网搜索后，后端使用 LangChain 1.x 的 `create_agent` 与 `ChatOpenAI`，并将 Tavily 搜索包装为 agent 工具。依赖版本约束见 [`requirements.txt`](requirements.txt)。
 
 在仓库根目录 `.env` 配置 `TAVILY_API_KEY`，并重启后端。Docker Compose 部署时重新构建后端镜像：
 

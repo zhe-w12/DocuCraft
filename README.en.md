@@ -2,7 +2,7 @@
 
 English | [简体中文](README.md)
 
-DocuCraft is an open-source web document workspace for AI-assisted writing, OCR, Word/PDF export, and PDF editing. It consists of a Vue 3 web client and a Python/FastAPI backend. It is designed for people and teams who want to self-host the document service and choose their own OCR engine.
+DocuCraft is an open-source web document workspace for AI-assisted writing, web search, OCR, Word/PDF export, and PDF editing. It consists of a Vue 3/Vite web client and a Python/FastAPI backend. Web search uses a LangChain agent to orchestrate model tool calls and Tavily web search. It is designed for people and teams who want to self-host the document service and choose their own OCR engine.
 
 [![CI](https://github.com/zhe-w12/iscan/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/zhe-w12/iscan/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
@@ -24,18 +24,31 @@ flowchart LR
     User[Browser] --> Web[Vue web client]
     Web --> API[FastAPI backend]
     API --> OCR[Your OCR HTTP service]
-    API --> AI[Optional AI model service]
+    API -->|Regular AI request| AI[OpenAI-compatible model service]
+    API -->|Web search enabled| Agent[LangChain agent]
+    Agent --> AI
+    Agent --> Tavily[Tavily Search API]
     API --> Store[Local disk or object storage]
 ```
 
 | Directory | Responsibility |
 | --- | --- |
 | `frontend/` | Web interface, browser-side image preparation, PDF editor, and API client |
-| `backend/` | API, OCR adapter, document generation, file storage, and downloads |
+| `backend/` | FastAPI, OCR adapter, AI requests, LangChain web search, document generation, file storage, and downloads |
 | `deploy/` | Nginx example for static web hosting |
 | `docs/` | User, developer, and operator guides |
 
-The web client never calls OCR or AI providers directly. Scan images go from the backend to `OCR_ENDPOINT`; AI conversation text goes from the backend to the configured model service. Review the [data flow and privacy notes](docs/architecture.md) and use endpoints you trust.
+The web client never calls OCR or AI providers directly. Scan images go from the backend to `OCR_ENDPOINT`; AI conversation text goes from the backend to the configured model service, and search queries are also sent to Tavily when web search is enabled. Review the [data flow and privacy notes](docs/architecture.md) and use endpoints you trust.
+
+## Technology stack
+
+| Layer | Technology |
+| --- | --- |
+| Web client | Vue 3, Vite, JavaScript |
+| API service | Python 3.13, FastAPI |
+| Regular AI chat | The backend calls an OpenAI-compatible Chat Completions API with `httpx` |
+| AI web search | LangChain 1.x agent (`langchain`, `langchain-openai`) with the Tavily tool (`langchain-tavily`) |
+| OCR | Operator-configured HTTP OCR service; production uses the `generic_http` provider |
 
 ## Quick start: local development
 
