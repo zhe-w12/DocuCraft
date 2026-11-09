@@ -4,6 +4,22 @@ import { createId } from "./ids.js";
 
 const STORE_KEY = "iscan-assistant-conversations-v1";
 const DOCUMENT_STORE_KEY = "iscan-assistant-document-v1";
+const MEMORY_PROFILE_KEY = "docucraft-assistant-memory-profile-v1";
+
+function readMemoryProfileId() {
+  try {
+    const existing = localStorage.getItem(MEMORY_PROFILE_KEY);
+    if (typeof existing === "string" && /^[A-Za-z0-9_-]{20,64}$/.test(existing)) return existing;
+    const profileId = createId();
+    localStorage.setItem(MEMORY_PROFILE_KEY, profileId);
+    return profileId;
+  } catch {
+    return "";
+  }
+}
+
+export const assistantMemoryProfileId = readMemoryProfileId();
+
 function readState() {
   try {
     const value = JSON.parse(localStorage.getItem(STORE_KEY) || "{}");
@@ -35,7 +51,7 @@ function readDocument() {
 
 function isDocumentReply(message) {
   if (message?.documentOutput === true) return true;
-  return message?.role === "assistant" && Boolean(message.workflow) && !["auto", "chat"].includes(message.workflow);
+  return message?.role === "assistant" && Boolean(message.workflow) && !["auto", "chat", "plan"].includes(message.workflow);
 }
 
 function conversationForStorage(conversation) {

@@ -16,7 +16,7 @@ from email.utils import parsedate_to_datetime
 from pathlib import Path
 
 import httpx
-from fastapi import FastAPI, File, HTTPException, Request, UploadFile
+from fastapi import FastAPI, File, Header, HTTPException, Request, UploadFile
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, StreamingResponse
@@ -41,8 +41,15 @@ from app.services.assistant import (
     AssistantConfigurationError,
     AssistantProviderError,
     assistant_status,
+    get_assistant_config,
     generate_reply,
     stream_reply,
+)
+from app.services.assistant_memory import (
+    clear_memories,
+    delete_memory,
+    is_valid_profile_id,
+    list_memories,
 )
 from app.services.documents import (
     _coordinate_word_index,
@@ -1583,9 +1590,54 @@ def get_assistant_status() -> dict[str, object]:
     return assistant_status()
 
 
+@app.get("/api/v1/assistant/memories")
+def get_assistant_memories(
+    memory_profile_id: str = Header(default="", alias="X-DocuCraft-Memory-Profile"),
+) -> dict[str, object]:
+    if not is_valid_profile_id(memory_profile_id):
+        raise HTTPException(status_code=422, detail="长期记忆配置无效。")
+    try:
+        return {"memories": list_memories(memory_profile_id)}
+    except Exception as exc:
+        logger.exception("Unable to read assistant memories")
+        raise HTTPException(status_code=503, detail="长期记忆数据库暂时不可用。") from exc
+
+
+@app.delete("/api/v1/assistant/memories")
+def delete_all_assistant_memories(
+    memory_profile_id: str = Header(default="", alias="X-DocuCraft-Memory-Profile"),
+) -> dict[str, int]:
+    if not is_valid_profile_id(memory_profile_id):
+        raise HTTPException(status_code=422, detail="长期记忆配置无效。")
+    try:
+        return {"deleted": clear_memories(memory_profile_id)}
+    except Exception as exc:
+        logger.exception("Unable to clear assistant memories")
+        raise HTTPException(status_code=503, detail="长期记忆数据库暂时不可用。") from exc
+
+
+@app.delete("/api/v1/assistant/memories/{memory_id}")
+def delete_assistant_memory(
+    memory_id: str,
+    memory_profile_id: str = Header(default="", alias="X-DocuCraft-Memory-Profile"),
+) -> dict[str, bool]:
+    if not is_valid_profile_id(memory_profile_id):
+        raise HTTPException(status_code=422, detail="长期记忆配置无效。")
+    try:
+        return {"deleted": delete_memory(memory_profile_id, memory_id)}
+    except Exception as exc:
+        logger.exception("Unable to delete assistant memory")
+        raise HTTPException(status_code=503, detail="长期记忆数据库暂时不可用。") from exc
+
+
 @app.post("/api/v1/assistant/chat", response_model=AssistantChatResponse)
 async def assistant_chat(payload: AssistantChatRequest) -> AssistantChatResponse:
     messages = [message.model_dump() for message in payload.messages]
+    assistant_options: dict[str, object] = {}
+    if payload.web_search:
+        assistant_options["web_search"] = True
+    if payload.memory_profile_id:
+        assistant_options["memory_profile_id"] = payload.memory_profile_id
     if payload.stream:
         if not assistant_status()["configured"]:
             raise HTTPException(
@@ -1595,11 +1647,7 @@ async def assistant_chat(payload: AssistantChatRequest) -> AssistantChatResponse
 
         async def events():
             try:
-                reply_stream = (
-                    stream_reply(payload.mode, messages, web_search=True)
-                    if payload.web_search
-                    else stream_reply(payload.mode, messages)
-                )
+                reply_stream = stream_reply(payload.mode, messages, **assistant_options)
                 async for content in reply_stream:
                     yield json.dumps({"type": "delta", "content": content}, ensure_ascii=False) + "\n"
                 yield json.dumps({"type": "done"}, ensure_ascii=False) + "\n"
@@ -1616,9 +1664,11 @@ async def assistant_chat(payload: AssistantChatRequest) -> AssistantChatResponse
 
     try:
         content = (
-            await generate_reply(payload.mode, messages, web_search=True)
-            if payload.web_search
-            else await generate_reply(payload.mode, messages)
+            await generate_reply(
+                payload.mode,
+                messages,
+                **assistant_options,
+            )
         )
     except AssistantConfigurationError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc

@@ -9,10 +9,11 @@ class AssistantMessage(BaseModel):
 
 
 class AssistantChatRequest(BaseModel):
-    mode: Literal["auto", "write", "revise", "polish", "shorten", "expand", "rewrite", "summarize", "chat"] = "auto"
+    mode: Literal["auto", "plan", "write_from_plan", "write", "revise", "polish", "shorten", "expand", "rewrite", "summarize", "chat"] = "auto"
     messages: list[AssistantMessage] = Field(min_length=1, max_length=80)
     stream: bool = False
     web_search: bool = False
+    memory_profile_id: str = Field(default="", max_length=64, pattern=r"^$|^[A-Za-z0-9_-]{20,64}$")
 
     @model_validator(mode="after")
     def validate_conversation(self):

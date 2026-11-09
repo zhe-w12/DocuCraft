@@ -2,7 +2,7 @@
 
 English | [简体中文](README.md)
 
-The DocuCraft backend uses FastAPI for browser APIs, OCR requests, AI requests, document generation, file storage, and downloads. Regular AI chat calls an OpenAI-compatible Chat Completions API with `httpx`; web search uses a LangChain 1.x agent with `langchain-openai` and `langchain-tavily`. Production Compose does not choose an OCR service: it uses `generic_http` to send scans to the operator-configured `OCR_ENDPOINT`.
+The DocuCraft backend uses FastAPI for browser APIs, OCR requests, AI requests, document generation, file storage, and downloads. AI requests run through a LangChain 1.x agent; long-term memory is stored in SQLite, and web search uses `langchain-tavily` with Tavily. Production Compose does not choose an OCR service: it uses `generic_http` to send scans to the operator-configured `OCR_ENDPOINT`.
 
 ## Requirements
 
@@ -50,6 +50,7 @@ The backend reads `.env` from the repository root. Never copy `.env` or real cre
 | `STORAGE_BACKEND` | `local` for backend disk or `aliyun_oss` for the configured object store. |
 | `STORAGE_DIR` | Local storage path. Production deployments should mount a persistent directory. |
 | `AI_PROVIDER` / `AI_API_BASE_URL` / `AI_API_KEY` / `AI_MODEL` | Optional AI writing model settings. The model key belongs on the backend only. |
+| `AI_PLANNER_MODEL` / `AI_WRITER_MODEL` | Optional model names for the planning and writing agents. If blank, both use `AI_MODEL` and share its endpoint and API key. |
 | `TAVILY_API_KEY` | Optional LangChain web search key. Keep it on the backend; once configured, enable search in the assistant composer. |
 | `MAX_UPLOAD_MB` / `MAX_SOURCE_IMAGE_MB` | API upload and source-image size limits. |
 | `OCR_MAX_CONCURRENT` / `OCR_REQUESTS_PER_MINUTE` | OCR concurrency and request rate limits. |
@@ -58,7 +59,7 @@ The backend reads `.env` from the repository root. Never copy `.env` or real cre
 
 ## AI web search
 
-Regular AI chat does not use LangChain; the backend calls the configured OpenAI-compatible Chat Completions API with `httpx`. When the user enables web search, the backend uses LangChain 1.x `create_agent` with `ChatOpenAI` and exposes Tavily search as an agent tool. Dependency constraints are listed in [`requirements.txt`](requirements.txt).
+AI requests run through a LangChain 1.x agent. Once `TAVILY_API_KEY` is configured, the agent receives a Tavily search tool only when the user enables web search. Dependency constraints are listed in [`requirements.txt`](requirements.txt).
 
 Set `TAVILY_API_KEY` in the repository-root `.env` file and restart the backend. For Docker Compose, rebuild the backend image:
 
@@ -66,7 +67,15 @@ Set `TAVILY_API_KEY` in the repository-root `.env` file and restart the backend.
 docker compose -f backend/docker-compose.yml up --build
 ```
 
-Then enable “Web search” in the assistant composer. When disabled, the assistant does not call the search tool. When enabled, the LangChain agent can call Tavily up to 3 times per request, with up to 5 results per search. Answers include numbered citations and source links. Search queries are sent to Tavily; keep the key in the backend environment. The configured chat model must support Function Calling.
+Then enable “Web search” in the assistant composer. When disabled, the assistant does not call Tavily. When enabled, the LangChain agent can search up to 3 times per request, with up to 5 results per search. Answers include numbered citations and source links. Search queries are sent to Tavily; keep the key in the backend environment. The configured chat model must support Function Calling for memory and search tools.
+
+## Short-term and long-term memory
+
+Short-term memory is the current conversation's message list. The frontend sends only the selected conversation to the backend; it does not merge in other conversations. Conversation history remains in the current browser.
+
+Long-term memory stores user preferences and project facts that may help across conversations. The LangChain agent calls a memory tool when appropriate. Memories are stored by browser profile in `STORAGE_DIR/assistant_memory.sqlite3` (by default, `backend/storage/assistant_memory.sqlite3`) and retrieved with lightweight keyword matching; no embedding service is needed. The Docker Compose `backend/storage` volume persists the database. Use “Long-term memory” in the assistant composer to review or delete entries.
+
+The assistant should not store passwords, API keys, financial or health information. Each browser profile has a separate memory namespace. The project does not currently provide login accounts or cross-device memory sync.
 
 ## OCR request flow
 

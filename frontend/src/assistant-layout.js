@@ -1,5 +1,5 @@
 export function shouldOpenDocumentPane(mode, lastAssistantWorkflow) {
-  if (mode === "chat") return false;
+  if (mode === "chat" || mode === "plan") return false;
   return !(mode === "auto" && lastAssistantWorkflow === "chat");
 }
 
@@ -15,7 +15,7 @@ export function latestAssistantMessage(messages) {
 export function latestDocumentMessageId(messages) {
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const message = messages[index];
-    if (message?.role === "assistant" && message.workflow && message.workflow !== "chat") {
+    if (message?.role === "assistant" && message.workflow && !["chat", "plan"].includes(message.workflow)) {
       return message.id || null;
     }
   }

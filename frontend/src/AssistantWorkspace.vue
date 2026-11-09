@@ -1,7 +1,7 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import MarkdownIt from "markdown-it";
-import { assistantState, buildAssistantRequestMessages, createAssistantConversation, flushAssistantPersistence, getAssistantConversationDraft, persistAssistantDocument, persistAssistantState, selectAssistantConversation, setAssistantConversationDraft } from "./assistant-state.js";
+import { assistantMemoryProfileId, assistantState, buildAssistantRequestMessages, createAssistantConversation, flushAssistantPersistence, getAssistantConversationDraft, persistAssistantDocument, persistAssistantState, selectAssistantConversation, setAssistantConversationDraft } from "./assistant-state.js";
 import { handleAssistantComposerKeydown, resolveAssistantDraftOnConversationChange } from "./assistant-composer.js";
 import { resolveAssistantWorkflow } from "./assistant-workflow.js";
 import { latestAssistantMessage, latestDocumentMessageId, shouldOpenDocumentPane } from "./assistant-layout.js";
@@ -24,6 +24,7 @@ import { copyTextToClipboard } from "./clipboard.js";
 import { safeDownloadStem } from "./download-filename.js";
 import { downloadBlob } from "./browser-download.js";
 import ManualCopyDialog from "./ManualCopyDialog.vue";
+import AssistantMemoryDialog from "./AssistantMemoryDialog.vue";
 
 const markdown = new MarkdownIt({ html: false, linkify: false, breaks: true });
 markdown.renderer.rules.image = (tokens, index) => markdown.utils.escapeHtml(tokens[index].content);
@@ -76,6 +77,7 @@ let statusRequestSequence = 0;
 
 const MODE_OPTIONS = [
   { id: "auto", label: "自动判断", hint: "先识别你要从零写作还是修改已有内容。" },
+  { id: "plan", label: "先规划再写作", hint: "先与规划 agent 讨论目录和写作思路；你确认后，写作 agent 再生成正文。" },
   { id: "write", label: "从零写作", hint: "告诉我主题、用途和读者；我会先组织结构，再写初稿。" },
   { id: "revise", label: "修改原文", hint: "粘贴原文并说明修改要求；我会保留原有事实和核心观点。" },
   { id: "polish", label: "润色", hint: "改善流畅度和表达，保留原文信息。" },
@@ -87,6 +89,13 @@ const MODE_OPTIONS = [
 ];
 
 const starters = [
+  {
+    icon: "✦",
+    title: "先规划再写作",
+    description: "先讨论目录和内容安排，确认后生成完整文档",
+    mode: "plan",
+    prompt: "我想写一份商业计划书。请先和我讨论目标读者、项目定位、核心假设和必要信息，再给出详细目录与每章要点。先不要写正文；等我确认方案后再开始写作。",
+  },
   {
     icon: "✦",
     title: "从零开始写作",
@@ -146,6 +155,7 @@ const editorMode = ref("read");
 const outlineCollapsed = ref(false);
 const activeOutlineId = ref("");
 const manualCopyDialog = ref(null);
+const memoryDialog = ref(null);
 let streamMessageScrollFrame = 0;
 let streamDocumentScrollFrame = 0;
 let inactiveMessageScrollTop = 0;
@@ -171,7 +181,7 @@ const latestDocumentId = computed(() => latestDocumentMessageId(activeMessages.v
 const selectedMode = computed(() => MODE_OPTIONS.find(option => option.id === assistantState.mode) || MODE_OPTIONS[0]);
 const lastAssistantMessage = computed(() => latestAssistantMessage(activeMessages.value));
 const documentPaneOpen = ref(shouldOpenDocumentPane(assistantState.mode, lastAssistantMessage.value?.workflow));
-const isChatLayout = computed(() => assistantState.mode === "chat" || (
+const isChatLayout = computed(() => ["chat", "plan"].includes(assistantState.mode) || (
   assistantState.mode === "auto" && (
     sending.value && currentRequestConversationId.value === assistantState.activeId
       ? currentRequestWorkflow.value
@@ -250,6 +260,36 @@ documentPaneOpen.value = shouldOpenDocumentPane(assistantState.mode, lastAssista
 
 function requestUrl(path) {
   return `${String(props.apiBase || "").trim().replace(/\/+$/, "")}${path}`;
+}
+
+function openMemoryManager() {
+  memoryDialog.value?.open();
+}
+
+function canApprovePlan(message) {
+  const conversation = activeConversation.value;
+  return Boolean(
+    conversation && conversation.mode === "plan" && !conversation.planApproved &&
+    message?.id === lastAssistantMessage.value?.id && message.workflow === "plan" &&
+    assistantMessageStatus(message) === "complete"
+  );
+}
+
+function approvePlan() {
+  const conversation = activeConversation.value;
+  if (!conversation || sending.value) return;
+  if (!assistantState.status.configured) {
+    inlineError.value = "AI 模型还未接入。请在后端环境配置中设置模型 API，然后重启后端。";
+    return;
+  }
+  conversation.planApproved = true;
+  conversation.planWriting = true;
+  conversation.mode = "write";
+  assistantState.mode = "write";
+  draft.value = "我确认以上规划方案。请根据已确认的目录、章节要点和要求，撰写完整文档。";
+  setAssistantConversationDraft(conversation.id, draft.value);
+  persistAssistantState();
+  void sendMessage();
 }
 
 async function refreshStatus() {
@@ -816,11 +856,12 @@ async function sendMessage() {
     return;
   }
 
-  const requestMode = assistantState.mode;
-  const conversation = activeConversation.value || createConversation(requestMode);
+  const conversation = activeConversation.value || createConversation(assistantState.mode);
+  const writingApprovedPlan = Boolean(conversation.planWriting);
+  const requestMode = writingApprovedPlan ? "write_from_plan" : assistantState.mode;
   const requestWorkflow = resolveAssistantWorkflow(requestMode, content, conversation.messages);
-  const isChatWorkflow = requestWorkflow === "chat";
-  conversation.mode = requestMode;
+  const isChatWorkflow = ["chat", "plan"].includes(requestWorkflow);
+  conversation.mode = writingApprovedPlan ? "write" : requestMode;
   const userMessage = { id: createMessageId(), role: "user", content, createdAt: Date.now() };
   conversation.messages.push(userMessage);
   if (conversation.messages.filter(item => item.role === "user").length === 1) {
@@ -871,6 +912,7 @@ async function sendMessage() {
         mode: requestWorkflow,
         stream: true,
         web_search: webSearchEnabled.value,
+        memory_profile_id: assistantMemoryProfileId,
         messages: buildAssistantRequestMessages(conversation),
       }),
     });
@@ -935,7 +977,12 @@ async function sendMessage() {
     if (!isChatWorkflow) {
       flushStreamPersistence();
       const documentDraft = splitDocumentTitle(assistantMessage.content);
-      updateConversationDocument(conversation, documentDraft.title || fallbackDocumentTitle(content), documentDraft.content, { preserveScrollPosition: true });
+      updateConversationDocument(
+        conversation,
+        documentDraft.title || fallbackDocumentTitle(writingApprovedPlan ? conversation.title : content),
+        documentDraft.content,
+        { preserveScrollPosition: true },
+      );
     } else {
       scheduleStreamPersistence(conversation);
       flushStreamPersistence();
@@ -959,6 +1006,10 @@ async function sendMessage() {
     sending.value = false;
     currentRequestWorkflow.value = "";
     currentRequestConversationId.value = "";
+    if (writingApprovedPlan) {
+      conversation.planWriting = false;
+      persistAssistantState();
+    }
     streamingMessageId.value = "";
     if (streamSaved) {
       window.dispatchEvent(new CustomEvent("iscan:assistant-stream-state", { detail: { active: false } }));
@@ -1127,6 +1178,7 @@ onBeforeUnmount(() => {
               <label class="assistant-web-search" :title="assistantState.status.webSearchConfigured ? '使用 Tavily 搜索互联网' : '请先在后端配置 TAVILY_API_KEY'"><input v-model="webSearchEnabled" type="checkbox" :disabled="sending || !assistantState.status.webSearchConfigured" /><span>联网搜索</span></label>
               <small v-if="webSearchEnabled" class="assistant-web-search-hint">搜索词会发送给 Tavily</small>
               <small v-else-if="!assistantState.status.loading && !assistantState.status.webSearchConfigured" class="assistant-web-search-hint">需配置 TAVILY_API_KEY</small>
+              <button class="assistant-memory-button" type="button" @click="openMemoryManager">长期记忆</button>
               <span class="assistant-mode-hint">{{ selectedMode.hint }}</span>
             </div>
             <div class="assistant-send-area"><small>Enter 发送 · Shift + Enter 换行</small><button class="assistant-send-button" type="button" :disabled="!draft.trim() || sending || assistantState.status.loading" :aria-label="sending ? (requestBelongsToActiveConversation ? '生成中' : '等待另一条对话完成') : '开始生成'" @click="sendMessage">{{ sending ? (requestBelongsToActiveConversation ? "生成中…" : "等待中…") : "开始生成 ↑" }}</button></div>
@@ -1241,16 +1293,17 @@ onBeforeUnmount(() => {
             <div class="assistant-avatar" :class="`is-${message.role}`">{{ message.role === "assistant" ? "AI" : "我" }}</div>
             <div class="assistant-message-body">
               <div class="assistant-message-label">
-                {{ message.role === "assistant" ? "DocuCraft 助手" : "你" }}
-                <span v-if="message.status && (!message.workflow || message.workflow === 'chat')" class="assistant-message-status">{{ assistantMessageStatus(message) === "streaming" ? "正在回复…" : assistantMessageStatus(message) === "complete" ? "回复完成" : "回复中断，已保留内容" }}</span>
+                {{ message.role === "assistant" ? (message.workflow === "plan" ? "规划 Agent" : message.workflow === "write_from_plan" ? "写作 Agent" : "DocuCraft 助手") : "你" }}
+                <span v-if="message.status && (!message.workflow || ['chat', 'plan'].includes(message.workflow))" class="assistant-message-status">{{ assistantMessageStatus(message) === "streaming" ? "正在回复…" : assistantMessageStatus(message) === "complete" ? "回复完成" : "回复中断，已保留内容" }}</span>
               </div>
-              <div v-if="message.role === 'assistant' && message.workflow && message.workflow !== 'chat'" class="assistant-document-status-card" :class="`is-${documentTaskStatus(message).icon}`">
+              <div v-if="message.role === 'assistant' && message.workflow && !['chat', 'plan'].includes(message.workflow)" class="assistant-document-status-card" :class="`is-${documentTaskStatus(message).icon}`">
                 <span class="assistant-document-status-icon" aria-hidden="true"><i v-if="message.status === 'streaming'"></i><template v-else>{{ message.status === 'complete' ? '✓' : '!' }}</template></span>
                 <div class="assistant-document-status-copy"><strong>{{ documentTaskStatus(message).title }}</strong><p>{{ documentTaskStatus(message).detail }}</p></div>
                 <button v-if="message.id === latestDocumentId && assistantMessageStatus(message) !== 'streaming'" class="assistant-document-open-button" type="button" @click="openDocumentForEditing">打开文档编辑</button>
               </div>
               <div v-else-if="props.active" class="assistant-message-content" v-html="renderAssistantMessage(message)"></div>
-              <div v-if="message.role === 'assistant' && (!message.workflow || message.workflow === 'chat')" class="assistant-message-actions">
+              <div v-if="message.role === 'assistant' && (!message.workflow || ['chat', 'plan'].includes(message.workflow))" class="assistant-message-actions">
+                <button v-if="canApprovePlan(message)" class="assistant-plan-approve" type="button" @click="approvePlan">确认方案并开始写作</button>
                 <button v-if="!message.workflow && assistantState.mode !== 'chat'" type="button" @click="insertIntoDocument(message.content)">写入文档</button>
                 <button v-if="!message.workflow && assistantState.mode !== 'chat'" type="button" @click="insertIntoDocument(message.content, true)">替换正文</button>
                 <button type="button" @click="copyMessage(message.content)">复制</button>
@@ -1259,7 +1312,7 @@ onBeforeUnmount(() => {
           </article>
           <div v-if="requestBelongsToActiveConversation && !streamingMessageId" class="assistant-message is-assistant">
             <div class="assistant-avatar is-assistant">AI</div>
-            <div class="assistant-message-body"><div class="assistant-message-label">DocuCraft 助手</div><div class="assistant-thinking"><i></i><i></i><i></i><span>{{ currentRequestWorkflow === "chat" ? "正在回复…" : "正在准备写入左侧文档…" }}</span></div></div>
+            <div class="assistant-message-body"><div class="assistant-message-label">{{ currentRequestWorkflow === "plan" ? "规划 Agent" : currentRequestWorkflow === "write_from_plan" ? "写作 Agent" : "DocuCraft 助手" }}</div><div class="assistant-thinking"><i></i><i></i><i></i><span>{{ ["chat", "plan"].includes(currentRequestWorkflow) ? "正在回复…" : "正在准备写入左侧文档…" }}</span></div></div>
           </div>
         </div>
       </section>
@@ -1284,6 +1337,7 @@ onBeforeUnmount(() => {
               <label class="assistant-web-search" :title="assistantState.status.webSearchConfigured ? '使用 Tavily 搜索互联网' : '请先在后端配置 TAVILY_API_KEY'"><input v-model="webSearchEnabled" type="checkbox" :disabled="sending || !assistantState.status.webSearchConfigured" /><span>联网搜索</span></label>
               <small v-if="webSearchEnabled" class="assistant-web-search-hint">搜索词会发送给 Tavily</small>
               <small v-else-if="!assistantState.status.loading && !assistantState.status.webSearchConfigured" class="assistant-web-search-hint">需配置 TAVILY_API_KEY</small>
+              <button class="assistant-memory-button" type="button" @click="openMemoryManager">长期记忆</button>
             </div>
             <div class="assistant-send-area">
               <small>Enter 发送 · Shift + Enter 换行</small>
@@ -1297,4 +1351,9 @@ onBeforeUnmount(() => {
   </div>
 
   <ManualCopyDialog ref="manualCopyDialog" />
+  <AssistantMemoryDialog
+    ref="memoryDialog"
+    :api-base="props.apiBase"
+    :profile-id="assistantMemoryProfileId"
+  />
 </template>

@@ -2,7 +2,7 @@
 
 English | [简体中文](README.md)
 
-DocuCraft is an open-source web document workspace for AI-assisted writing, web search, OCR, Word/PDF export, and PDF editing. It consists of a Vue 3/Vite web client and a Python/FastAPI backend. Web search uses a LangChain agent to orchestrate model tool calls and Tavily web search. It is designed for people and teams who want to self-host the document service and choose their own OCR engine.
+DocuCraft is an open-source web document workspace for AI-assisted writing, web search, cross-conversation memory, OCR, Word/PDF export, and PDF editing. It consists of a Vue 3/Vite web client and a Python/FastAPI backend. LangChain agents orchestrate AI tools, and long-term memories are stored in a server-side SQLite database.
 
 [![CI](https://github.com/zhe-w12/iscan/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/zhe-w12/iscan/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
@@ -11,7 +11,7 @@ DocuCraft is an open-source web document workspace for AI-assisted writing, web 
 
 ## Features
 
-- **AI writing and editing:** chat, draft, continue, proofread, rewrite, shorten, expand, and summarize. Model settings live on the backend; the web client does not store model credentials.
+- **AI writing and editing:** a planning agent discusses the outline and chapter goals first; after user approval, a writer agent drafts the document. Also supports chat, continuation, proofreading, rewriting, shortening, expansion, and summarization. Model settings live on the backend; the web client does not store model credentials.
 - **Scan recognition:** the backend sends uploaded images to your OCR HTTP endpoint and returns reviewable text and tables. OCR coordinates and table geometry can be used to preserve layout.
 - **Document export:** export AI documents as DOCX, PDF, or Markdown. Scans can be exported as image-faithful documents or editable tables.
 - **PDF editing:** preview PDFs in the browser, erase content, add or draw signatures, and save an edited copy.
@@ -24,17 +24,17 @@ flowchart LR
     User[Browser] --> Web[Vue web client]
     Web --> API[FastAPI backend]
     API --> OCR[Your OCR HTTP service]
-    API -->|Regular AI request| AI[OpenAI-compatible model service]
-    API -->|Web search enabled| Agent[LangChain agent]
+    API --> Agent[LangChain agent]
     Agent --> AI
-    Agent --> Tavily[Tavily Search API]
+    Agent -->|Web search enabled| Tavily[Tavily Search API]
+    Agent --> Memory[SQLite long-term memory]
     API --> Store[Local disk or object storage]
 ```
 
 | Directory | Responsibility |
 | --- | --- |
 | `frontend/` | Web interface, browser-side image preparation, PDF editor, and API client |
-| `backend/` | FastAPI, OCR adapter, AI requests, LangChain web search, document generation, file storage, and downloads |
+| `backend/` | FastAPI, OCR adapter, LangChain AI tools, SQLite long-term memory, document generation, file storage, and downloads |
 | `deploy/` | Nginx example for static web hosting |
 | `docs/` | User, developer, and operator guides |
 
@@ -46,8 +46,9 @@ The web client never calls OCR or AI providers directly. Scan images go from the
 | --- | --- |
 | Web client | Vue 3, Vite, JavaScript |
 | API service | Python 3.13, FastAPI |
-| Regular AI chat | The backend calls an OpenAI-compatible Chat Completions API with `httpx` |
-| AI web search | LangChain 1.x agent (`langchain`, `langchain-openai`) with the Tavily tool (`langchain-tavily`) |
+| AI agent and model | LangChain 1.x (`langchain`, `langchain-openai`) with the configured OpenAI-compatible model |
+| AI web search | The LangChain agent can call the Tavily tool (`langchain-tavily`) when enabled |
+| Long-term memory | Python SQLite database stored at `STORAGE_DIR/assistant_memory.sqlite3` |
 | OCR | Operator-configured HTTP OCR service; production uses the `generic_http` provider |
 
 ## Quick start: local development

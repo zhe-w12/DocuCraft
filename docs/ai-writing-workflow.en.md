@@ -6,14 +6,14 @@ This guide describes how the web app, backend prompts, and product behavior work
 
 ## User entry point
 
-The web app opens on an AI chat page. Users can ask a question directly or choose a workflow: automatic, chat, draft from scratch, edit existing text, proofread, shorten, expand, rewrite, or summarize. Quick actions are available for writing, proofreading, summarization, and chat. Chat mode uses a full-width conversation view and supports natural multi-turn questions without forcing a formal document template. Users can hide the document area and reopen it from the AI panel. After the first request in another workflow, the app shows a document editor alongside the AI panel. The assistant streams formatted text into the document; its title is taken from the response's first-level heading. Users can switch between editing and reading, copy the content, and download Word, PDF, or Markdown files. The app renders Markdown without raw HTML or remote images. On desktop, users can swap or maximize the panels; on mobile, tabs switch between the document and assistant. Image OCR, document history, and the PDF editor remain available from the left side.
+The web app opens on an AI chat page. Users can ask a question directly or choose a workflow: automatic, plan then write, chat, draft from scratch, edit existing text, proofread, shorten, expand, rewrite, or summarize. In plan-then-write mode, a planning agent discusses the requirements and outline with the user. Only after approval does the writing agent draft the document and stream it into the existing editor. Users can edit the draft in real time or ask the AI to revise it. Chat and planning use the conversation view without forcing a complete document. Other writing workflows show a document editor alongside the AI panel. The app renders Markdown without raw HTML or remote images. On desktop, users can swap or maximize the panels; on mobile, tabs switch between the document and assistant. Image OCR, document history, and the PDF editor remain available from the left side.
 
 ## How a request is handled
 
 1. **Collect requirements.** The user describes the goal, source text, purpose, audience, format, length, and tone. If no workflow is selected, the backend infers whether to draft or edit from the instruction and conversation context.
 2. **Choose a task pattern.** Drafting can use structures suited to reports, resumes, articles, social posts, speeches, essays, and stories. Editing instructions preserve facts, key points, and required information while applying proofreading, shortening, expansion, rewriting, or summarization.
 3. **Check required input.** Editing needs source text and an instruction. If the source is missing, ask the user to provide it. Make reasonable assumptions about nonessential details and state them clearly; do not invent facts, figures, examples, citations, or sources.
-4. **Call the model.** The web app sends the current conversation context and workflow marker to the DocuCraft backend. For regular AI chat, the backend calls the configured OpenAI-compatible Chat Completions API with `httpx`. When the user enables web search, it uses LangChain 1.x `create_agent` with `ChatOpenAI` and exposes Tavily search as a tool. Model and search keys stay in the server environment.
+4. **Call the model.** The web app sends only the selected conversation and workflow marker to the DocuCraft backend, where LangChain 1.x agents handle the request. When enabled, web search is a Tavily tool. Cross-conversation memories are scoped to the current browser profile and stored in a persistent SQLite database. Model and search keys stay in the server environment.
 5. **Review the result.** Prompts ask the model to check relevance, repetition, omissions, and factual drift. If a request is unsafe, the model should decline politely and offer a safer direction. Users should verify generated content, especially professional conclusions and time-sensitive information.
 6. **Revise and continue.** Users can insert or replace the document with a response, then request changes such as “make this more formal,” “cut it in half,” or “only revise this paragraph.” The browser saves recent conversations and the document being edited on that device. The current conversation is sent as context for the next request. Unless the user asks for an excerpt, the model returns the full revised text. Word and PDF files are generated temporarily by the backend and removed after the response; Markdown is exported locally in the browser.
 
@@ -38,6 +38,8 @@ AI_PROVIDER=bailian
 AI_API_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
 AI_API_KEY=your-server-side-model-key
 AI_MODEL=qwen3.8-max
+AI_PLANNER_MODEL=
+AI_WRITER_MODEL=
 TAVILY_API_KEY=your-server-side-Tavily-key
 ```
 
@@ -45,4 +47,12 @@ Without model configuration, image OCR, document history, and the PDF editor rem
 
 ## Web search
 
-Set `TAVILY_API_KEY` in the repository-root `.env` file and restart the backend to enable the “Web search” toggle in the assistant composer. The backend only exposes the search tool to the model when the user turns the toggle on; the model decides whether to call it for the current conversation. Each request is limited to 3 searches, with up to 5 results per search, and the answer includes numbered sources and links. Search queries are sent to Tavily, and the configured model must support Function Calling. For Docker, rebuild the image after adding the LangChain dependencies using the [backend deployment guide](../backend/README.en.md#docker-deployment).
+Set `TAVILY_API_KEY` in the repository-root `.env` file and restart the backend to enable the “Web search” toggle in the assistant composer. The agent receives the Tavily tool only when the user turns the toggle on. Each request is limited to 3 searches, with up to 5 results per search, and the answer includes numbered sources and links. Search queries are sent to Tavily. The configured model must support Function Calling for memory and search tools. For Docker, rebuild the image after adding the LangChain dependencies using the [backend deployment guide](../backend/README.en.md#docker-deployment).
+
+## Short-term and long-term memory
+
+Short-term memory contains only the current conversation's messages. The frontend keeps conversation history locally, but each request sends only the selected conversation. The agent may save durable preferences or project facts explicitly shared by the user to `STORAGE_DIR/assistant_memory.sqlite3`. The backend retrieves relevant entries with lightweight keyword matching; no vector database or embedding service is needed. Users can review or delete them with “Long-term memory” in the composer. Do not store sensitive information, credentials, or temporary task details.
+
+## Two-agent planning and writing
+
+Select “Plan then write” to discuss the goal, audience, positioning, assumptions, outline, and chapter goals with the planning agent. It does not draft the full document during this stage. After the user selects “Confirm plan and start writing,” the writing agent receives the conversation and approved plan, then streams the full draft into the existing editor. `AI_PLANNER_MODEL` and `AI_WRITER_MODEL` optionally select different model names; when blank, both use `AI_MODEL` and share `AI_API_BASE_URL` and `AI_API_KEY`. The user can edit the result live or continue asking the AI to revise it.

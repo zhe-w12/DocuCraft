@@ -2,7 +2,7 @@
 
 简体中文 | [English](README.en.md)
 
-DocuCraft 是一个开源的网页文档工作台，提供 AI 写作、联网搜索、扫描件文字识别、Word/PDF 导出和 PDF 编辑功能。项目由 Vue 3/Vite 网页前端和 Python/FastAPI 后端组成；联网搜索使用 LangChain agent 编排模型工具调用，并通过 Tavily 搜索互联网。适合希望自行部署、管理文档处理服务和 OCR 引擎的个人或团队。
+DocuCraft 是一个开源的网页文档工作台，提供 AI 写作、联网搜索、跨对话长期记忆、扫描件文字识别、Word/PDF 导出和 PDF 编辑功能。项目由 Vue 3/Vite 网页前端和 Python/FastAPI 后端组成；LangChain agent 负责 AI 工具编排，长期记忆保存在服务端 SQLite 数据库。
 
 [![CI](https://github.com/zhe-w12/iscan/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/zhe-w12/iscan/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
@@ -11,7 +11,7 @@ DocuCraft 是一个开源的网页文档工作台，提供 AI 写作、联网搜
 
 ## 功能一览
 
-- **AI 写作与修改**：聊天、起草、续写、润色、改写、缩写、扩写和总结。模型通过后端配置；网页代码不保存模型密钥。
+- **AI 写作与修改**：支持规划 agent 先讨论目录和章节安排，用户确认后由写作 agent 生成正文；也支持聊天、续写、润色、改写、缩写、扩写和总结。模型通过后端配置；网页代码不保存模型密钥。
 - **扫描件识别**：上传图片，由后端把图像发送到你部署的 OCR HTTP 接口，生成可校对的文本与表格。支持 OCR 坐标和表格结构，以便还原布局。
 - **文档导出**：将 AI 文档导出为 DOCX、PDF 或 Markdown；扫描件可生成保留原图版式的文档，以及可编辑的表格文档。
 - **PDF 编辑**：在浏览器中预览 PDF、擦除内容、添加或手写签名，并另存编辑后的 PDF。
@@ -24,17 +24,17 @@ flowchart LR
     User[用户浏览器] --> Web[Vue 网页]
     Web --> API[FastAPI 后端]
     API --> OCR[你部署的 OCR HTTP 服务]
-    API -->|普通 AI 请求| AI[兼容 OpenAI API 的模型服务]
-    API -->|开启联网搜索| Agent[LangChain agent]
+    API --> Agent[LangChain agent]
     Agent --> AI
-    Agent --> Tavily[Tavily 搜索 API]
+    Agent -->|开启联网搜索| Tavily[Tavily 搜索 API]
+    Agent --> Memory[SQLite 长期记忆数据库]
     API --> Store[本地磁盘或对象存储]
 ```
 
 | 组件 | 主要职责 |
 | --- | --- |
 | `frontend/` | 网页界面、浏览器图片准备、PDF 编辑和 API 调用 |
-| `backend/` | FastAPI、OCR 服务适配、AI 请求、LangChain 联网搜索、文档生成、文件存储与下载 |
+| `backend/` | FastAPI、OCR 服务适配、LangChain AI tools、SQLite 长期记忆、文档生成、文件存储与下载 |
 | `deploy/` | Nginx 静态网页服务配置示例 |
 | `docs/` | 面向用户、开发者和部署者的详细指南 |
 
@@ -46,8 +46,9 @@ flowchart LR
 | --- | --- |
 | 网页 | Vue 3、Vite、JavaScript |
 | API 服务 | Python 3.13、FastAPI |
-| 常规 AI 对话 | 后端通过 `httpx` 调用 OpenAI-compatible Chat Completions API |
-| AI 联网搜索 | LangChain 1.x agent（`langchain`、`langchain-openai`）与 Tavily 工具（`langchain-tavily`） |
+| AI agent 与模型 | LangChain 1.x（`langchain`、`langchain-openai`）调用配置的 OpenAI-compatible 模型 |
+| AI 联网搜索 | LangChain agent 按需调用 Tavily 工具（`langchain-tavily`） |
+| 长期记忆 | Python SQLite，保存在 `STORAGE_DIR/assistant_memory.sqlite3` |
 | OCR | 部署者配置的 HTTP OCR 服务；生产环境使用 `generic_http` provider |
 
 ## 快速开始：本地开发

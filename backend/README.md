@@ -2,7 +2,7 @@
 
 简体中文 | [English](README.en.md)
 
-DocuCraft 后端基于 FastAPI，负责浏览器 API、OCR 服务调用、AI 请求、文档生成、文件保存和下载。普通 AI 对话通过 `httpx` 调用 OpenAI-compatible Chat Completions API；启用联网搜索时使用 LangChain 1.x agent、`langchain-openai` 和 `langchain-tavily`。后端不会在生产环境自行选择第三方 OCR 服务：生产 Compose 使用 `generic_http`，由 `OCR_ENDPOINT` 指向部署者自己的 OCR 服务。
+DocuCraft 后端基于 FastAPI，负责浏览器 API、OCR 服务调用、AI 请求、文档生成、文件保存和下载。AI agent 使用 LangChain 1.x；长期记忆保存在 SQLite 数据库，联网搜索通过 `langchain-tavily` 调用 Tavily。后端不会在生产环境自行选择第三方 OCR 服务：生产 Compose 使用 `generic_http`，由 `OCR_ENDPOINT` 指向部署者自己的 OCR 服务。
 
 ## 环境要求
 
@@ -50,6 +50,7 @@ python run.py
 | `STORAGE_BACKEND` | `local` 使用后端本地目录；`aliyun_oss` 使用兼容配置的对象存储。 |
 | `STORAGE_DIR` | 本地存储目录；生产部署应映射到持久化目录。 |
 | `AI_PROVIDER` / `AI_API_BASE_URL` / `AI_API_KEY` / `AI_MODEL` | 可选 AI 写作模型设置。模型密钥仅放在后端环境。 |
+| `AI_PLANNER_MODEL` / `AI_WRITER_MODEL` | 可选规划 agent 与写作 agent 模型名；留空时使用 `AI_MODEL`，共用同一服务地址和 API 密钥。 |
 | `TAVILY_API_KEY` | 可选 LangChain 联网搜索密钥；仅放在后端环境，配置后可在助手输入框开启搜索。 |
 | `MAX_UPLOAD_MB` / `MAX_SOURCE_IMAGE_MB` | API 图片上传和原始图像大小限制。 |
 | `OCR_MAX_CONCURRENT` / `OCR_REQUESTS_PER_MINUTE` | OCR 并发量和速率限制。 |
@@ -58,7 +59,7 @@ python run.py
 
 ## AI 联网搜索
 
-普通 AI 对话不经过 LangChain；后端使用 `httpx` 请求配置的 OpenAI-compatible Chat Completions API。用户开启联网搜索后，后端使用 LangChain 1.x 的 `create_agent` 与 `ChatOpenAI`，并将 Tavily 搜索包装为 agent 工具。依赖版本约束见 [`requirements.txt`](requirements.txt)。
+AI 请求由 LangChain 1.x agent 执行，`TAVILY_API_KEY` 配置后，用户开启联网搜索时 agent 才会获得 Tavily 搜索工具。依赖版本约束见 [`requirements.txt`](requirements.txt)。
 
 在仓库根目录 `.env` 配置 `TAVILY_API_KEY`，并重启后端。Docker Compose 部署时重新构建后端镜像：
 
@@ -66,7 +67,15 @@ python run.py
 docker compose -f backend/docker-compose.yml up --build
 ```
 
-随后在助手输入框勾选“联网搜索”。未勾选时助手不会调用搜索工具；勾选后，LangChain agent 可按需调用 Tavily 搜索，每次请求最多搜索 3 次、每次最多返回 5 条结果。回答会附带编号和来源链接。搜索词会发送给 Tavily，密钥只保存在后端环境。配置的聊天模型需要支持 Function Calling。
+随后在助手输入框勾选“联网搜索”。未勾选时助手不会调用 Tavily；勾选后，LangChain agent 可按需搜索，每次请求最多搜索 3 次、每次最多返回 5 条结果。回答会附带编号和来源链接。搜索词会发送给 Tavily，密钥只保存在后端环境。配置的聊天模型需要支持 Function Calling，以使用长期记忆和搜索工具。
+
+## 短期与长期记忆
+
+短期记忆是当前对话的消息列表。前端只把当前选中的对话发给后端，不会把其他对话合并进来；对话历史仍保存在当前浏览器。
+
+长期记忆只保留适合跨对话使用的用户偏好和项目事实。LangChain agent 会在需要时调用记忆工具；记忆按当前浏览器档案保存到 `STORAGE_DIR/assistant_memory.sqlite3`，默认位于 `backend/storage/assistant_memory.sqlite3`。检索使用轻量关键词匹配，不需要 Embedding 服务；Docker Compose 的 `backend/storage` volume 会持久化数据库。助手页面的“长期记忆”按钮可以查看或删除记忆。
+
+系统不应保存密码、API 密钥、财务或健康等敏感内容。更换浏览器档案会使用另一套记忆空间；本项目当前不提供登录账号或跨设备记忆同步。
 
 ## OCR 调用流程
 
