@@ -1,6 +1,6 @@
 # DocuCraft AI 写作与修改工作流
 
-[English](ai-writing-workflow.en.md) | 简体中文
+简体中文 | [English](ai-writing-workflow.en.md)
 
 本文说明 DocuCraft 网页端与后端如何协作完成 AI 写作和文本修改，并约定用户入口、请求流程和内容边界，供维护前后端时参考。
 

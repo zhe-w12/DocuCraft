@@ -1,6 +1,6 @@
 # 后端指南
 
-[English](README.en.md) | 简体中文
+简体中文 | [English](README.en.md)
 
 DocuCraft 后端基于 FastAPI，负责浏览器 API、OCR 服务调用、文档生成、文件保存和下载。它不会在生产环境自行选择第三方 OCR 服务：生产 Compose 使用 `generic_http`，由 `OCR_ENDPOINT` 指向部署者自己的 OCR 服务。
 

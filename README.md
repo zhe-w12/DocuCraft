@@ -1,6 +1,6 @@
 # DocuCraft
 
-[English](README.en.md) | 简体中文
+简体中文 | [English](README.en.md)
 
 DocuCraft 是一个开源的网页文档工作台，提供 AI 写作、扫描件文字识别、Word/PDF 导出和 PDF 编辑功能。项目由 Vue 3 网页前端和 Python/FastAPI 后端组成，适合希望自行部署、管理文档处理服务和 OCR 引擎的个人或团队。
 
