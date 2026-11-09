@@ -1,0 +1,21 @@
+{
+  "id": "./",
+  "name": "DocuCraft · AI 文档工作台",
+  "short_name": "DocuCraft",
+  "description": "使用 AI 写作、识别扫描件、导出文档并在浏览器中编辑 PDF。",
+  "lang": "zh-CN",
+  "dir": "ltr",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f6f7fb",
+  "theme_color": "#f6f7fb",
+  "icons": [
+    {
+      "src": "./iscan-logo.png",
+      "sizes": "1254x1254",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

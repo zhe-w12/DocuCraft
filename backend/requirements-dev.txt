@@ -1,0 +1,7 @@
+-r requirements.txt
+
+# Keep test tooling separate from the backend runtime image.
+httpx2>=2,<3
+starlette>=1.7,<2
+pytest>=9,<10
+pip-audit>=2.10,<3

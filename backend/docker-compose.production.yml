@@ -1,0 +1,17 @@
+name: scan-convert
+
+services:
+  scan-convert-api:
+    build: .
+    container_name: scan-convert-api
+    restart: unless-stopped
+    network_mode: host
+    env_file:
+      - ${ISCAN_ROOT:-/opt/iscan}/.env
+    environment:
+      OCR_PROVIDER: generic_http
+      OCR_ENDPOINT: "${OCR_ENDPOINT:?Set OCR_ENDPOINT in the deployment environment file}"
+      OCR_API_KEY: "${OCR_API_KEY:-}"
+    volumes:
+      - ${ISCAN_ROOT:-/opt/iscan}/backend/storage:/app/storage
+      - ${ISCAN_ROOT:-/opt/iscan}/backend/storage_metadata:/app/storage_metadata

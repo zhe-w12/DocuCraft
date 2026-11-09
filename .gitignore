@@ -1,0 +1,64 @@
+**/build/
+**/.idea/
+*.iml
+**/.env
+!**/.env.example
+**/.env.*
+!**/.env.example
+
+backend/.venv/
+backend/__pycache__/
+backend/app/__pycache__/
+backend/storage/*
+!backend/storage/.gitkeep
+backend/storage_metadata/
+
+# 依赖包
+node_modules/
+package-lock.json
+yarn.lock
+!frontend/package-lock.json
+
+# 构建产物
+dist/
+build/
+output/
+
+# 编辑器缓存
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# 系统文件
+.DS_Store
+Thumbs.db
+
+# 环境变量、密钥
+.env
+.env.local
+
+# 日志
+*.log
+
+
+# Build archives and local inspection exports
+**/build*/
+
+# Generated test and preview artifacts
+.pytest_cache/
+__pycache__/
+qa_*/
+video_frames/
+site-source/
+site-build/
+web-site.tar.gz
+backend/text-layout-test.docx
+/.codex-test-tmp/
+/tmp/
+/.openai/
+/agent.md
+/素材/
+
+# Timestamped backend deployment bundles are generated from source
+backend/deploy/

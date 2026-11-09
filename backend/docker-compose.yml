@@ -1,0 +1,14 @@
+name: scan-convert
+
+services:
+  scan-convert-api:
+    build: .
+    container_name: scan-convert-api
+    restart: unless-stopped
+    env_file:
+      - ../.env
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./storage:/app/storage
+      - ./storage_metadata:/app/storage_metadata
