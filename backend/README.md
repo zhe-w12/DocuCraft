@@ -50,6 +50,7 @@ python run.py
 | `STORAGE_BACKEND` | `local` 使用后端本地目录；`aliyun_oss` 使用兼容配置的对象存储。 |
 | `STORAGE_DIR` | 本地存储目录；生产部署应映射到持久化目录。 |
 | `AI_PROVIDER` / `AI_API_BASE_URL` / `AI_API_KEY` / `AI_MODEL` | 可选 AI 写作模型设置。模型密钥仅放在后端环境。 |
+| `TAVILY_API_KEY` | 可选 LangChain 联网搜索密钥；仅放在后端环境，配置后可在助手输入框开启搜索。 |
 | `MAX_UPLOAD_MB` / `MAX_SOURCE_IMAGE_MB` | API 图片上传和原始图像大小限制。 |
 | `OCR_MAX_CONCURRENT` / `OCR_REQUESTS_PER_MINUTE` | OCR 并发量和速率限制。 |
 

@@ -50,6 +50,7 @@ The backend reads `.env` from the repository root. Never copy `.env` or real cre
 | `STORAGE_BACKEND` | `local` for backend disk or `aliyun_oss` for the configured object store. |
 | `STORAGE_DIR` | Local storage path. Production deployments should mount a persistent directory. |
 | `AI_PROVIDER` / `AI_API_BASE_URL` / `AI_API_KEY` / `AI_MODEL` | Optional AI writing model settings. The model key belongs on the backend only. |
+| `TAVILY_API_KEY` | Optional LangChain web search key. Keep it on the backend; once configured, enable search in the assistant composer. |
 | `MAX_UPLOAD_MB` / `MAX_SOURCE_IMAGE_MB` | API upload and source-image size limits. |
 | `OCR_MAX_CONCURRENT` / `OCR_REQUESTS_PER_MINUTE` | OCR concurrency and request rate limits. |
 

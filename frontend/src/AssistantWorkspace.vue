@@ -118,6 +118,7 @@ const starters = [
 ];
 
 const draft = ref("");
+const webSearchEnabled = ref(false);
 const sending = ref(false);
 const currentRequestWorkflow = ref("");
 const currentRequestConversationId = ref("");
@@ -266,6 +267,7 @@ async function refreshStatus() {
       configured: Boolean(data.configured),
       provider: data.provider || "AI 模型",
       model: data.model || "",
+      webSearchConfigured: Boolean(data.web_search_configured),
       error: "",
     });
   } catch (error) {
@@ -275,6 +277,7 @@ async function refreshStatus() {
       configured: false,
       provider: "AI 模型",
       model: "",
+      webSearchConfigured: false,
       error: error?.name === "AbortError" ? "连接超时，请重新检测" : "连接不到 AI 服务",
     });
   } finally {
@@ -867,6 +870,7 @@ async function sendMessage() {
       body: JSON.stringify({
         mode: requestWorkflow,
         stream: true,
+        web_search: webSearchEnabled.value,
         messages: buildAssistantRequestMessages(conversation),
       }),
     });
@@ -1120,6 +1124,9 @@ onBeforeUnmount(() => {
           <div class="assistant-composer-footer">
             <div class="assistant-composer-options">
               <label class="assistant-mode-select"><span>工作流</span><select v-model="assistantState.mode" :disabled="sending" aria-label="选择写作工作流"><option v-for="option in MODE_OPTIONS" :key="option.id" :value="option.id">{{ option.label }}</option></select></label>
+              <label class="assistant-web-search" :title="assistantState.status.webSearchConfigured ? '使用 Tavily 搜索互联网' : '请先在后端配置 TAVILY_API_KEY'"><input v-model="webSearchEnabled" type="checkbox" :disabled="sending || !assistantState.status.webSearchConfigured" /><span>联网搜索</span></label>
+              <small v-if="webSearchEnabled" class="assistant-web-search-hint">搜索词会发送给 Tavily</small>
+              <small v-else-if="!assistantState.status.loading && !assistantState.status.webSearchConfigured" class="assistant-web-search-hint">需配置 TAVILY_API_KEY</small>
               <span class="assistant-mode-hint">{{ selectedMode.hint }}</span>
             </div>
             <div class="assistant-send-area"><small>Enter 发送 · Shift + Enter 换行</small><button class="assistant-send-button" type="button" :disabled="!draft.trim() || sending || assistantState.status.loading" :aria-label="sending ? (requestBelongsToActiveConversation ? '生成中' : '等待另一条对话完成') : '开始生成'" @click="sendMessage">{{ sending ? (requestBelongsToActiveConversation ? "生成中…" : "等待中…") : "开始生成 ↑" }}</button></div>
@@ -1274,6 +1281,9 @@ onBeforeUnmount(() => {
           <div class="assistant-composer-footer">
             <div class="assistant-composer-options">
               <label class="assistant-mode-select"><span>工作流</span><select v-model="assistantState.mode" :disabled="sending" aria-label="选择写作工作流"><option v-for="option in MODE_OPTIONS" :key="option.id" :value="option.id">{{ option.label }}</option></select></label>
+              <label class="assistant-web-search" :title="assistantState.status.webSearchConfigured ? '使用 Tavily 搜索互联网' : '请先在后端配置 TAVILY_API_KEY'"><input v-model="webSearchEnabled" type="checkbox" :disabled="sending || !assistantState.status.webSearchConfigured" /><span>联网搜索</span></label>
+              <small v-if="webSearchEnabled" class="assistant-web-search-hint">搜索词会发送给 Tavily</small>
+              <small v-else-if="!assistantState.status.loading && !assistantState.status.webSearchConfigured" class="assistant-web-search-hint">需配置 TAVILY_API_KEY</small>
             </div>
             <div class="assistant-send-area">
               <small>Enter 发送 · Shift + Enter 换行</small>

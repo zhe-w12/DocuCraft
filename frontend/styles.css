@@ -282,6 +282,10 @@ button:focus-visible, a:focus-visible, .import-card:focus-within { outline: 3px 
 .assistant-composer-options { min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 9px; }
 .assistant-mode-select { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 0 9px; border: 1px solid var(--line); border-radius: 9px; color: var(--muted); background: #fafafe; font-size: 10px; }
 .assistant-mode-select select { max-width: 112px; border: 0; outline: 0; color: var(--violet-dark); background: transparent; font-size: 11px; font-weight: 700; }
+.assistant-web-search { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 0 9px; border: 1px solid var(--line); border-radius: 9px; color: var(--ink); background: #fafafe; font-size: 10px; cursor: pointer; }
+.assistant-web-search input { width: 13px; height: 13px; margin: 0; accent-color: var(--violet); }
+.assistant-web-search input:disabled { cursor: not-allowed; }
+.assistant-web-search-hint { color: var(--muted); font-size: 10px; }
 .assistant-mode-hint { max-width: 360px; color: var(--muted); line-height: 1.45; font-size: 11px; }
 .assistant-send-area { display: flex; flex: 0 0 auto; align-items: center; gap: 10px; }
 .assistant-send-area small { color: var(--muted); font-size: 10px; }

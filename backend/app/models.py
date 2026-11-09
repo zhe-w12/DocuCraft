@@ -12,6 +12,7 @@ class AssistantChatRequest(BaseModel):
     mode: Literal["auto", "write", "revise", "polish", "shorten", "expand", "rewrite", "summarize", "chat"] = "auto"
     messages: list[AssistantMessage] = Field(min_length=1, max_length=80)
     stream: bool = False
+    web_search: bool = False
 
     @model_validator(mode="after")
     def validate_conversation(self):

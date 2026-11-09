@@ -62,7 +62,7 @@ Windows PowerShell：
 Copy-Item backend/.env.example .env
 ```
 
-首次运行时可先保持默认值。要启用 AI 写作，请填写后端 `.env` 中的 `AI_API_KEY` 及模型服务设置。真实密钥只写入服务器或本机的 `.env`，不要提交到 Git。
+首次运行时可先保持默认值。要启用 AI 写作，请填写后端 `.env` 中的 `AI_API_KEY` 及模型服务设置。启用联网搜索还需配置 `TAVILY_API_KEY`，并在助手输入框打开“联网搜索”。真实密钥只写入服务器或本机的 `.env`，不要提交到 Git。
 
 ### 2. 启动后端
 

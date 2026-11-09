@@ -104,6 +104,7 @@ export const assistantState = reactive({
     configured: false,
     provider: "阿里云百炼",
     model: "",
+    webSearchConfigured: false,
   },
 });
 
