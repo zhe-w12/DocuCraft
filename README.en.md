@@ -62,7 +62,7 @@ Windows PowerShell:
 Copy-Item backend/.env.example .env
 ```
 
-You can keep the defaults for the first run. To enable AI writing, fill in `AI_API_KEY` and the model settings in the backend environment file. Web search also requires `TAVILY_API_KEY` and the “Web search” toggle in the assistant composer. Keep real credentials on your machine or server; never commit them.
+You can keep the defaults for the first run. To enable AI writing, fill in `AI_API_KEY` and the model settings in the repository-root `.env` file. Web search also requires `TAVILY_API_KEY`; restart the backend, then enable “Web search” in the assistant composer. Docker deployments must rebuild the backend image after adding dependencies. Keep real credentials on your machine or server; never commit them.
 
 ### 2. Start the backend
 

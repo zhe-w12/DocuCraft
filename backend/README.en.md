@@ -56,6 +56,16 @@ The backend reads `.env` from the repository root. Never copy `.env` or real cre
 
 `VITE_API_BASE_URL` is a frontend build variable, not a backend setting. See the [self-hosted OCR guide](../docs/self-hosted-ocr.en.md) for the OCR contract.
 
+## AI web search
+
+Set `TAVILY_API_KEY` in the repository-root `.env` file and restart the backend. For Docker Compose, rebuild the backend image:
+
+```sh
+docker compose -f backend/docker-compose.yml up --build
+```
+
+Then enable “Web search” in the assistant composer. When disabled, the assistant does not call the search tool. When enabled, the LangChain agent can call Tavily up to 3 times per request, with up to 5 results per search. Answers include numbered citations and source links. Search queries are sent to Tavily; keep the key in the backend environment. The configured chat model must support Function Calling.
+
 ## OCR request flow
 
 1. The frontend sends a scan to `POST /api/v1/documents/convert`.

@@ -56,6 +56,16 @@ python run.py
 
 前端构建变量 `VITE_API_BASE_URL` 不属于后端配置。更多 OCR 接口定义见[自建 OCR 接入指南](../docs/self-hosted-ocr.md)。
 
+## AI 联网搜索
+
+在仓库根目录 `.env` 配置 `TAVILY_API_KEY`，并重启后端。Docker Compose 部署时重新构建后端镜像：
+
+```sh
+docker compose -f backend/docker-compose.yml up --build
+```
+
+随后在助手输入框勾选“联网搜索”。未勾选时助手不会调用搜索工具；勾选后，LangChain agent 可按需调用 Tavily 搜索，每次请求最多搜索 3 次、每次最多返回 5 条结果。回答会附带编号和来源链接。搜索词会发送给 Tavily，密钥只保存在后端环境。配置的聊天模型需要支持 Function Calling。
+
 ## OCR 调用流程
 
 1. 前端将扫描图片发送到 `POST /api/v1/documents/convert`。
