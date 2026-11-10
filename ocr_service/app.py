@@ -7,7 +7,6 @@ from collections.abc import Iterable
 from contextlib import asynccontextmanager
 from io import BytesIO
 from math import isfinite
-from statistics import median
 from typing import Any
 
 from fastapi import FastAPI, File, Header, HTTPException, UploadFile
@@ -136,49 +135,6 @@ def _line_detections(result: Any, width: int, height: int) -> list[dict[str, Any
     return sorted(detections, key=lambda item: (item["top"], item["left"]))
 
 
-def _join_line(tokens: list[str]) -> str:
-    result = ""
-    previous = ""
-    for token in tokens:
-        if not token:
-            continue
-        needs_space = bool(
-            previous
-            and token[:1].isascii()
-            and token[:1].isalnum()
-            and (
-                (previous[-1:].isascii() and previous[-1:].isalnum())
-                or previous[-1:] in {",", ".", ";", ":", "!", "?"}
-            )
-        )
-        if needs_space:
-            result += " "
-        result += token
-        previous = token
-    return result.strip()
-
-
-def _group_paragraphs(detections: list[dict[str, Any]]) -> list[str]:
-    if not detections:
-        return []
-    heights = [float(item["height"]) for item in detections]
-    paragraph_gap = max(6.0, median(heights) * 0.75)
-    groups: list[list[dict[str, Any]]] = []
-    previous_bottom: float | None = None
-    for item in detections:
-        top = float(item["top"])
-        if previous_bottom is None or top - previous_bottom > paragraph_gap:
-            groups.append([])
-        groups[-1].append(item)
-        previous_bottom = max(previous_bottom or 0.0, top + float(item["height"]))
-
-    paragraphs = [
-        _join_line([item["text"] for item in group])
-        for group in groups
-    ]
-    return [paragraph for paragraph in paragraphs if paragraph]
-
-
 def _recognize(image_bytes: bytes) -> dict[str, Any]:
     try:
         with Image.open(BytesIO(image_bytes)) as source:
@@ -200,7 +156,10 @@ def _recognize(image_bytes: bytes) -> dict[str, Any]:
         raise RuntimeError("RapidOCR inference failed") from exc
 
     detections = _line_detections(result, width, height)
-    paragraphs = _group_paragraphs(detections)
+    # Keep one recognized line per paragraph here. DocuCraft's backend uses
+    # these line strings together with the boxes below to restore prose
+    # paragraphs and identify headings from the original page geometry.
+    paragraphs = [item["text"] for item in detections]
     confidences = [item["confidence"] for item in detections]
     average_confidence = sum(confidences) / len(confidences) if confidences else 0.0
     low_confidence_examples = [
@@ -220,7 +179,7 @@ def _recognize(image_bytes: bytes) -> dict[str, Any]:
         for item in detections
     ]
     return {
-        "text": "\n\n".join(paragraphs),
+        "text": "\n".join(paragraphs),
         "paragraphs": paragraphs,
         "positioned_words": positioned_words,
         "image_width": width,
