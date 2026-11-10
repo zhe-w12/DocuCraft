@@ -66,7 +66,6 @@ test("narrow PDF, document and assistant controls meet their touch-size targets"
     ".assistant-panel-tool",
     ".assistant-document-open-button",
     ".assistant-message-actions button",
-    ".assistant-home-starter",
     ".assistant-home-composer .assistant-send-button",
     ".assistant-compose-area .assistant-send-button",
     ".tool-page-header .primary-button",

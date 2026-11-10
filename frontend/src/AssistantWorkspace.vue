@@ -76,54 +76,16 @@ const SAVE_FAILURE_TEXT = "本地保存失败；此设备上的对话或文档�
 let statusRequestSequence = 0;
 
 const MODE_OPTIONS = [
-  { id: "auto", label: "自动判断", hint: "先识别你要从零写作还是修改已有内容。" },
-  { id: "plan", label: "先规划再写作", hint: "先与规划 agent 讨论目录和写作思路；你确认后，写作 agent 再生成正文。" },
-  { id: "write", label: "从零写作", hint: "告诉我主题、用途和读者；我会先组织结构，再写初稿。" },
-  { id: "revise", label: "修改原文", hint: "粘贴原文并说明修改要求；我会保留原有事实和核心观点。" },
-  { id: "polish", label: "润色", hint: "改善流畅度和表达，保留原文信息。" },
-  { id: "shorten", label: "缩写", hint: "压缩篇幅，保留关键事实和结论。" },
-  { id: "expand", label: "扩写", hint: "补足结构和解释，不编造依据不足的细节。" },
-  { id: "rewrite", label: "改写", hint: "按你指定的语气重写，保持事实与观点不变。" },
-  { id: "summarize", label: "总结", hint: "提炼你提供材料中的主题、要点和结论。" },
-  { id: "chat", label: "闲聊", hint: "轻松聊聊，像普通对话一样自然接话，不强行生成文档。" },
-];
-
-const starters = [
-  {
-    icon: "✦",
-    title: "先规划再写作",
-    description: "先讨论目录和内容安排，确认后生成完整文档",
-    mode: "plan",
-    prompt: "我想写一份商业计划书。请先和我讨论目标读者、项目定位、核心假设和必要信息，再给出详细目录与每章要点。先不要写正文；等我确认方案后再开始写作。",
-  },
-  {
-    icon: "✦",
-    title: "从零开始写作",
-    description: "公文、方案、简历、文章或社交媒体文案",
-    mode: "write",
-    prompt: "请帮我写一份内容。我会补充主题、用途、读者和希望的语气。",
-  },
-  {
-    icon: "↗",
-    title: "润色一段文字",
-    description: "保留原意，让表达更自然、更清楚",
-    mode: "polish",
-    prompt: "请润色下面这段文字，保留事实和核心观点，让语言更自然：\n\n",
-  },
-  {
-    icon: "≋",
-    title: "总结一份材料",
-    description: "粘贴内容，提取重点和结论",
-    mode: "summarize",
-    prompt: "请总结下面的材料，列出主题、关键要点和结论：\n\n",
-  },
-  {
-    icon: "☕",
-    title: "轻松聊聊天",
-    description: "聊聊日常、兴趣或脑海里的想法",
-    mode: "chat",
-    prompt: "嗨，陪我轻松聊一会儿吧。",
-  },
+  { id: "auto", label: "自动判断" },
+  { id: "plan", label: "先规划再写作" },
+  { id: "write", label: "从零写作" },
+  { id: "revise", label: "修改原文" },
+  { id: "polish", label: "润色" },
+  { id: "shorten", label: "缩写" },
+  { id: "expand", label: "扩写" },
+  { id: "rewrite", label: "改写" },
+  { id: "summarize", label: "总结" },
+  { id: "chat", label: "闲聊" },
 ];
 
 const draft = ref("");
@@ -178,7 +140,6 @@ const activeMessages = computed(() => activeConversation.value?.messages || []);
 const visibleMessages = computed(() => sliceLatestAssistantMessages(activeMessages.value, visibleMessageCount.value));
 const hasOlderMessages = computed(() => visibleMessages.value.length < activeMessages.value.length);
 const latestDocumentId = computed(() => latestDocumentMessageId(activeMessages.value));
-const selectedMode = computed(() => MODE_OPTIONS.find(option => option.id === assistantState.mode) || MODE_OPTIONS[0]);
 const lastAssistantMessage = computed(() => latestAssistantMessage(activeMessages.value));
 const documentPaneOpen = ref(shouldOpenDocumentPane(assistantState.mode, lastAssistantMessage.value?.workflow));
 const isChatLayout = computed(() => ["chat", "plan"].includes(assistantState.mode) || (
@@ -347,18 +308,6 @@ function createConversation(mode = assistantState.mode) {
 function openRequestConversation() {
   if (!assistantState.requestActive || !assistantState.requestConversationId) return;
   selectAssistantConversation(assistantState.requestConversationId);
-}
-
-function chooseStarter(starter) {
-  if (!activeConversation.value) createConversation(starter.mode);
-  assistantState.mode = starter.mode;
-  if (activeConversation.value) activeConversation.value.mode = starter.mode;
-  draft.value = starter.prompt;
-  nextTick(() => {
-    if (!composer.value) return;
-    composer.value.focus();
-    resizeComposer();
-  });
 }
 
 function persistDocument() {
@@ -1179,18 +1128,11 @@ onBeforeUnmount(() => {
               <small v-if="webSearchEnabled" class="assistant-web-search-hint">搜索词会发送给 Tavily</small>
               <small v-else-if="!assistantState.status.loading && !assistantState.status.webSearchConfigured" class="assistant-web-search-hint">需配置 TAVILY_API_KEY</small>
               <button class="assistant-memory-button" type="button" @click="openMemoryManager">长期记忆</button>
-              <span class="assistant-mode-hint">{{ selectedMode.hint }}</span>
             </div>
             <div class="assistant-send-area"><small>Enter 发送 · Shift + Enter 换行</small><button class="assistant-send-button" type="button" :disabled="!draft.trim() || sending || assistantState.status.loading" :aria-label="sending ? (requestBelongsToActiveConversation ? '生成中' : '等待另一条对话完成') : '开始生成'" @click="sendMessage">{{ sending ? (requestBelongsToActiveConversation ? "生成中…" : "等待中…") : "开始生成 ↑" }}</button></div>
           </div>
         </div>
-        <div class="assistant-home-starters">
-          <button v-for="starter in starters" :key="starter.mode" type="button" class="assistant-home-starter" @click="chooseStarter(starter)">
-            <span class="assistant-starter-icon">{{ starter.icon }}</span><strong>{{ starter.title }}</strong><small>{{ starter.description }}</small>
-          </button>
-        </div>
       </div>
-      <p class="assistant-home-footnote">图片识别、历史文档和 PDF 编辑器仍可从左侧栏进入</p>
     </main>
   </div>
 
