@@ -240,7 +240,7 @@ button:focus-visible, a:focus-visible, .import-card:focus-within { outline: 3px 
 .assistant-thread { flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 12px 15px; overflow-x: hidden; overflow-y: auto; scroll-behavior: smooth; }
 .assistant-load-older { align-self: center; flex: 0 0 auto; min-height: 44px; margin: 8px 0 0; padding: 0 13px; border: 1px solid #e3e2f6; border-radius: 999px; color: #514bd4; background: rgba(255,255,255,.97); font-size: 11px; font-weight: 650; }
 .assistant-load-older:hover { border-color: #c9c5ff; background: #fbfaff; }
-.assistant-messages { width: min(1600px, 100%); display: grid; align-content: start; gap: 17px; margin: 0; padding: 8px 0; }
+.assistant-messages { width: min(1600px, 100%); display: grid; align-content: start; gap: 14px; margin: 0; padding: 8px 0; }
 .assistant-message { display: flex; align-items: flex-start; gap: 8px; min-width: 0; }
 .assistant-message.is-user { flex-direction: row-reverse; }
 .assistant-avatar { width: 27px; height: 27px; flex: 0 0 27px; display: grid; place-items: center; border-radius: 9px; color: var(--violet-dark); background: var(--violet-soft); font-size: 10px; font-weight: 800; }
@@ -249,12 +249,12 @@ button:focus-visible, a:focus-visible, .import-card:focus-within { outline: 3px 
 .assistant-message:not(.is-user) .assistant-message-body { flex: 1 1 auto; max-width: min(1600px, calc(100% - 35px)); }
 .assistant-message.is-user .assistant-message-body { text-align: right; }
 .assistant-message-label { margin: 0 0 6px; color: var(--muted); font-size: 10px; }
-.assistant-message-content { padding: 13px 16px; border: 1px solid var(--line); border-radius: 12px; background: #fff; color: var(--ink); text-align: left; white-space: normal; overflow-wrap: anywhere; line-height: 1.7; font-size: 16px; }
-.assistant-message.is-user .assistant-message-content { display: inline-block; border-color: #e5e3ff; border-radius: 15px 4px 15px 15px; background: #f1f2f6; }
-.assistant-message-content h1, .assistant-message-content h2, .assistant-message-content h3, .assistant-message-content h4, .assistant-message-content h5, .assistant-message-content h6 { margin: .9em 0 .4em; color: var(--ink); font-weight: 700; line-height: 1.45; }
-.assistant-message-content h1 { font-size: 1.2em; }
-.assistant-message-content h2 { font-size: 1.14em; }
-.assistant-message-content h3 { font-size: 1.08em; }
+.assistant-message-content { padding: 11px 14px; border: 1px solid var(--line); border-radius: 12px; background: #fff; color: var(--ink); text-align: left; white-space: normal; overflow-wrap: anywhere; line-height: 1.65; font-size: 15px; }
+.assistant-message.is-user .assistant-message-content { display: inline-block; max-width: min(100%, 640px); padding: 9px 12px; border-color: #e7e5ff; border-radius: 14px 5px 14px 14px; background: #f4f3ff; font-size: 14px; line-height: 1.55; }
+.assistant-message-content h1, .assistant-message-content h2, .assistant-message-content h3, .assistant-message-content h4, .assistant-message-content h5, .assistant-message-content h6 { margin: .7em 0 .3em; color: var(--ink); font-weight: 700; line-height: 1.4; }
+.assistant-message-content h1 { font-size: 1.16em; }
+.assistant-message-content h2 { font-size: 1.1em; }
+.assistant-message-content h3 { font-size: 1.04em; }
 .assistant-message-content h4, .assistant-message-content h5, .assistant-message-content h6 { font-size: 1em; }
 .assistant-document-status-card { display: grid; grid-template-columns: 24px minmax(0, 1fr); align-items: flex-start; gap: 8px 10px; padding: 10px; border: 1px solid #e7e8f2; border-radius: 10px; color: var(--ink); background: #fff; text-align: left; }
 .assistant-document-status-icon { width: 24px; height: 24px; display: grid; grid-column: 1; grid-row: 1; place-items: center; border-radius: 8px; color: #514bd4; background: #f0efff; font-size: 13px; font-weight: 800; }
@@ -528,8 +528,10 @@ button:focus-visible, a:focus-visible, .import-card:focus-within { outline: 3px 
 .assistant-panel-brand strong { font-size: 11px; }
 .assistant-panel-brand small { color: var(--muted); font-size: 10px; }
 .assistant-message-content > :first-child { margin-top: 0; }
-.assistant-message-content p { margin: 0 0 .8em; }
+.assistant-message-content p { margin: 0 0 .65em; }
 .assistant-message-content p:last-child { margin-bottom: 0; }
+.assistant-message-content ul, .assistant-message-content ol { margin: .3em 0 .65em; padding-left: 1.3em; }
+.assistant-message-content li { margin: .14em 0; }
 .assistant-message-status { margin-left: 7px; color: var(--violet-dark); font-size: 10px; }
 .assistant-message-actions { display: flex; flex-wrap: wrap; gap: 4px; margin: 5px 0 0; }
 .assistant-message-actions button { min-height: 32px; padding: 4px 8px; border: 1px solid #e9eaf0; border-radius: 7px; color: var(--muted); background: #fff; font-size: 11px; }
