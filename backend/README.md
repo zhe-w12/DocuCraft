@@ -2,7 +2,7 @@
 
 简体中文 | [English](README.en.md)
 
-DocuCraft 后端基于 FastAPI，负责浏览器 API、OCR 服务调用、AI 请求、文档生成、文件保存和下载。AI agent 使用 LangChain 1.x；长期记忆保存在 SQLite 数据库，联网搜索通过 `langchain-tavily` 调用 Tavily。后端不会在生产环境自行选择第三方 OCR 服务：生产 Compose 使用 `generic_http`，由 `OCR_ENDPOINT` 指向部署者自己的 OCR 服务。
+DocuCraft 后端基于 FastAPI，负责浏览器 API、OCR 服务调用、AI 请求、文档生成、文件保存和下载。AI agent 使用 LangChain 1.x；长期记忆保存在 SQLite 数据库，联网搜索通过 `langchain-tavily` 调用 Tavily。OCR 通过 `generic_http` 连接独立部署的 HTTP OCR 服务；仓库提供基于 Tesseract 的轻量服务，见 [`ocr_service/README.md`](../ocr_service/README.md)。
 
 ## 环境要求
 
@@ -44,9 +44,9 @@ python run.py
 | 变量 | 说明 |
 | --- | --- |
 | `HOST` / `PORT` | API 监听地址和端口；本地通常为 `127.0.0.1:5000`，容器内部按 Compose 配置监听。 |
-| `OCR_PROVIDER` | `mock` 用于本地开发；`generic_http` 调用自建 OCR HTTP 服务。 |
-| `OCR_ENDPOINT` | 自建 OCR 服务的完整 HTTP(S) 识别 URL。生产部署必填。 |
-| `OCR_API_KEY` | 可选 Bearer 密钥；仅存在于后端环境。 |
+| `OCR_PROVIDER` | `mock` 用于本地开发；`generic_http` 调用独立 OCR HTTP 服务。 |
+| `OCR_ENDPOINT` | OCR 服务的完整 HTTP(S) 识别 URL；本项目服务默认使用 `http://127.0.0.1:5100/ocr`。 |
+| `OCR_API_KEY` | OCR 服务 Bearer 密钥；仅存在于后端环境，且需与 OCR 服务配置一致。 |
 | `STORAGE_BACKEND` | `local` 使用后端本地目录；`aliyun_oss` 使用兼容配置的对象存储。 |
 | `STORAGE_DIR` | 本地存储目录；生产部署应映射到持久化目录。 |
 | `AI_PROVIDER` / `AI_API_BASE_URL` / `AI_API_KEY` / `AI_MODEL` | 可选 AI 写作模型设置。模型密钥仅放在后端环境。 |
@@ -85,7 +85,7 @@ docker compose -f backend/docker-compose.yml up --build
 4. 后端解析段落、定位词语和表格结果，生成可编辑文档并保存文件及元数据。
 5. 前端读取返回的文档信息，供用户校对、编辑和导出。
 
-生产环境的 OCR 服务不可用时不会自动切换到本地 OCR 或第三方 OCR。后端会按规则重试可恢复的错误；最终失败会返回给网页并提示用户。OCR 数据类型、通用 HTTP 适配器、provider 工厂和共享识别处理均位于 `app/services/ocr.py`。provider 工厂只允许 `mock`（开发）和 `generic_http`（自建 OCR 服务）。
+生产环境的 OCR 服务不可用时不会自动切换到第三方 OCR。后端会按规则重试可恢复的错误；最终失败会返回给网页并提示用户。仓库内的独立 Tesseract 服务只识别图片文字，不生成解题步骤或答案；它返回识别段落与文字位置，不提供表格网格结构。provider 工厂只允许 `mock`（开发）和 `generic_http`（独立 OCR 服务）。
 
 ## 主要 API
 
@@ -123,7 +123,7 @@ docker compose --env-file "$ISCAN_ROOT/.env" \
   -f backend/docker-compose.production.yml up -d --build
 ```
 
-生产配置把 `OCR_PROVIDER` 固定为 `generic_http`。如 OCR 服务运行在同一台主机上，确认地址和网络模式匹配；如果运行在另一台机器上，使用后端可访问的内网 DNS/IP 或 HTTPS 地址。容器内的 `127.0.0.1` 不等于其他容器或远程服务器。
+生产配置把 `OCR_PROVIDER` 固定为 `generic_http`。如使用仓库内的 OCR 服务，请按 [`ocr_service/README.md`](../ocr_service/README.md) 单独部署，并在后端环境中设置其地址和相同的 Bearer 密钥。如 OCR 服务运行在另一台机器上，使用后端可访问的内网 DNS/IP 或 HTTPS 地址。容器内的 `127.0.0.1` 不等于其他容器或远程服务器。
 
 首次上线前至少完成以下步骤：
 

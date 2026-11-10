@@ -59,6 +59,11 @@ def output_token_limit(mode: str) -> int:
     return min(MAX_OUTPUT_TOKENS, max(16, configured))
 
 
+def model_temperature(model: str) -> float:
+    """Return a temperature accepted by the selected model."""
+    return 1.0 if model.strip().lower().startswith("kimi-k3") else 0.7
+
+
 def get_assistant_config() -> AssistantConfig:
     provider = os.getenv("AI_PROVIDER", "bailian").strip().lower() or "bailian"
     default_url = DEFAULT_BAILIAN_BASE_URL if provider == "bailian" else ""
@@ -185,7 +190,7 @@ async def stream_reply(
                 json={
                     "model": config.model,
                     "messages": request_messages,
-                    "temperature": 0.7,
+                    "temperature": model_temperature(config.model),
                     "max_tokens": output_token_limit(mode),
                     "stream": True,
                 },
@@ -261,7 +266,7 @@ async def generate_reply(
                 json={
                     "model": config.model,
                     "messages": request_messages,
-                    "temperature": 0.7,
+                    "temperature": model_temperature(config.model),
                     "max_tokens": output_token_limit(mode),
                 },
             )
@@ -457,7 +462,7 @@ async def _stream_agent_reply(
         "model": configured_stage_model or config.model,
         "api_key": config.api_key,
         "base_url": config.base_url,
-        "temperature": 0.7,
+        "temperature": model_temperature(configured_stage_model or config.model),
         "max_tokens": output_token_limit(mode),
         "timeout": 120.0,
     }

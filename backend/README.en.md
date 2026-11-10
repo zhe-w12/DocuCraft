@@ -2,7 +2,7 @@
 
 English | [简体中文](README.md)
 
-The DocuCraft backend uses FastAPI for browser APIs, OCR requests, AI requests, document generation, file storage, and downloads. AI requests run through a LangChain 1.x agent; long-term memory is stored in SQLite, and web search uses `langchain-tavily` with Tavily. Production Compose does not choose an OCR service: it uses `generic_http` to send scans to the operator-configured `OCR_ENDPOINT`.
+The DocuCraft backend uses FastAPI for browser APIs, OCR requests, AI requests, document generation, file storage, and downloads. AI requests run through a LangChain 1.x agent; long-term memory is stored in SQLite, and web search uses `langchain-tavily` with Tavily. OCR uses `generic_http` to call a separately deployed HTTP service; this repository includes a lightweight Tesseract service in [`ocr_service/README.md`](../ocr_service/README.md).
 
 ## Requirements
 
@@ -44,9 +44,9 @@ The backend reads `.env` from the repository root. Never copy `.env` or real cre
 | Variable | Description |
 | --- | --- |
 | `HOST` / `PORT` | API bind address and port. Local development commonly uses `127.0.0.1:5000`; containers follow Compose settings. |
-| `OCR_PROVIDER` | `mock` for local development or `generic_http` for a self-hosted OCR service. |
-| `OCR_ENDPOINT` | Full HTTP(S) URL for the self-hosted OCR service. Required in production. |
-| `OCR_API_KEY` | Optional Bearer token. Keep it in the backend environment only. |
+| `OCR_PROVIDER` | `mock` for local development or `generic_http` for a separate OCR service. |
+| `OCR_ENDPOINT` | Full HTTP(S) URL for the OCR service; this repository's service defaults to `http://127.0.0.1:5100/ocr`. |
+| `OCR_API_KEY` | OCR service Bearer token. Keep it in the backend environment and match the service configuration. |
 | `STORAGE_BACKEND` | `local` for backend disk or `aliyun_oss` for the configured object store. |
 | `STORAGE_DIR` | Local storage path. Production deployments should mount a persistent directory. |
 | `AI_PROVIDER` / `AI_API_BASE_URL` / `AI_API_KEY` / `AI_MODEL` | Optional AI writing model settings. The model key belongs on the backend only. |
@@ -123,7 +123,7 @@ docker compose --env-file "$ISCAN_ROOT/.env" \
   -f backend/docker-compose.production.yml up -d --build
 ```
 
-Production fixes `OCR_PROVIDER` to `generic_http`. If the OCR service is on the same host, confirm that the address matches the network mode. If it runs elsewhere, use a private DNS/IP address or HTTPS URL reachable from the backend. Inside a container, `127.0.0.1` does not refer to another container or remote server.
+Production fixes `OCR_PROVIDER` to `generic_http`. To use this repository's OCR service, deploy it separately using [`ocr_service/README.md`](../ocr_service/README.md) and set its address and matching Bearer token in the backend environment. If it runs elsewhere, use a private DNS/IP address or HTTPS URL reachable from the backend. Inside a container, `127.0.0.1` does not refer to another container or remote server.
 
 Before going live:
 

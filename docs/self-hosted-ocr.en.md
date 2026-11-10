@@ -2,6 +2,8 @@
 
 Production uses the DocuCraft backend's `generic_http` adapter to call your own OCR service. Scans are not sent to Baidu or another third-party OCR service, and recognition does not fall back to Tesseract on the backend machine. Local development can use `mock`.
 
+This repository includes a separate Tesseract OCR microservice. It recognizes image text only; it does not generate solutions or answers. See [`ocr_service/README.md`](../ocr_service/README.md) for deployment and configuration.
+
 ## Configure the backend
 
 Set the service endpoint and optional API key in the deployment environment file:

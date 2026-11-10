@@ -2,6 +2,8 @@
 
 生产环境通过 DocuCraft 后端的 `generic_http` 适配器调用你自己部署的 OCR 服务。扫描图片不会发送到百度 OCR 等第三方服务；识别失败时也不会切换到后端机器上的 Tesseract。开发环境可以使用 `mock`。
 
+本仓库包含一个独立的 Tesseract OCR 微服务，只识别图片文字，不生成解题步骤或答案。它适合需要在服务器上自建、并由 DocuCraft 后端本机调用的场景；Docker 部署和接口配置见 [`ocr_service/README.md`](../ocr_service/README.md)。
+
 ## 配置后端
 
 在服务器部署环境文件中配置自建服务地址和可选访问密钥：

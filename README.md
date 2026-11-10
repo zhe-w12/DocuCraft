@@ -128,7 +128,7 @@ OCR_API_KEY=替换为服务密钥
 
 ## 生产部署
 
-生产部署包括网页静态文件、FastAPI 后端、你自己的 OCR 服务和持久化文件目录。请从[部署指南](backend/README.md#docker-部署)开始，按顺序完成环境变量、Compose、HTTPS 反向代理、存储备份和健康检查。网页服务示例见 [`deploy/`](deploy/README.md)。
+生产部署包括网页静态文件、FastAPI 后端、独立 OCR 服务和持久化文件目录。仓库提供轻量 Tesseract OCR 服务，部署步骤见 [`ocr_service/README.md`](ocr_service/README.md)；后端配置见[部署指南](backend/README.md#docker-部署)。网页服务示例见 [`deploy/`](deploy/README.md)。
 
 请确保后端可访问 OCR 服务地址；容器网络中的 `127.0.0.1` 指向后端容器或主机自身，不能用于指代另一台机器。跨主机连接应使用内网地址或 HTTPS 域名。公网不应直接暴露未受保护的后端端口。
 

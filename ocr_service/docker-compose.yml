@@ -1,0 +1,14 @@
+services:
+  docucraft-ocr:
+    build: .
+    container_name: docucraft-ocr
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:5100:5100"
+    environment:
+      OCR_API_KEY: "${OCR_SERVICE_API_KEY:?Set OCR_SERVICE_API_KEY in ocr_service/.env}"
+      OCR_LANG: "${OCR_LANG:-chi_sim+eng}"
+      OCR_MAX_UPLOAD_MB: "${OCR_MAX_UPLOAD_MB:-20}"
+      OCR_MAX_IMAGE_PIXELS: "${OCR_MAX_IMAGE_PIXELS:-50000000}"
+      OCR_TIMEOUT_SECONDS: "${OCR_TIMEOUT_SECONDS:-75}"
+      OCR_CONCURRENCY: "${OCR_CONCURRENCY:-1}"
