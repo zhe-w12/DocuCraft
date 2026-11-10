@@ -73,7 +73,18 @@ const props = defineProps({
 });
 const logoUrl = `${import.meta.env.BASE_URL}iscan-logo.png`;
 const SAVE_FAILURE_TEXT = "本地保存失败；此设备上的对话或文档可能未保存。请复制重要内容后再刷新页面。";
+const STREAM_CHARACTER_INTERVAL_MS = 16;
+const streamTextSegmenter = typeof Intl.Segmenter === "function"
+  ? new Intl.Segmenter("zh-CN", { granularity: "grapheme" })
+  : null;
 let statusRequestSequence = 0;
+
+function splitStreamCharacters(value) {
+  if (streamTextSegmenter) {
+    return Array.from(streamTextSegmenter.segment(value), segment => segment.segment);
+  }
+  return Array.from(value);
+}
 
 const MODE_OPTIONS = [
   { id: "auto", label: "自动判断" },
@@ -837,6 +848,10 @@ async function sendMessage() {
   if (!isChatWorkflow) editorMode.value = "read";
   scrollToLatest();
   let pendingStreamDelta = "";
+  let pendingChatCharacters = [];
+  let pendingChatCharacterIndex = 0;
+  let chatCharacterTimer = 0;
+  let resolveChatCharactersDrained = null;
   const renderDocumentDraft = () => {
     if (!assistantMessage) return;
     const documentDraft = splitDocumentTitle(assistantMessage.content);
@@ -852,6 +867,64 @@ async function sendMessage() {
     if (isChatWorkflow) scheduleMessageScrollToLatest(conversation);
     else documentStreamRender.schedule();
   });
+  const finishChatCharactersIfDrained = () => {
+    if (pendingChatCharacterIndex < pendingChatCharacters.length) return;
+    pendingChatCharacters = [];
+    pendingChatCharacterIndex = 0;
+    const resolve = resolveChatCharactersDrained;
+    resolveChatCharactersDrained = null;
+    resolve?.();
+  };
+  const revealNextChatCharacter = () => {
+    if (chatCharacterTimer) return;
+    if (pendingChatCharacterIndex >= pendingChatCharacters.length) {
+      finishChatCharactersIfDrained();
+      return;
+    }
+    chatCharacterTimer = window.setTimeout(() => {
+      chatCharacterTimer = 0;
+      if (!assistantMessage || pendingChatCharacterIndex >= pendingChatCharacters.length) {
+        finishChatCharactersIfDrained();
+        return;
+      }
+      assistantMessage.content += pendingChatCharacters[pendingChatCharacterIndex];
+      pendingChatCharacterIndex += 1;
+      scheduleStreamPersistence(conversation);
+      scheduleMessageScrollToLatest(conversation);
+      if (pendingChatCharacterIndex >= pendingChatCharacters.length) {
+        finishChatCharactersIfDrained();
+      } else {
+        revealNextChatCharacter();
+      }
+    }, STREAM_CHARACTER_INTERVAL_MS);
+  };
+  const queueChatCharacters = value => {
+    for (const character of splitStreamCharacters(value)) {
+      pendingChatCharacters.push(character);
+    }
+    revealNextChatCharacter();
+  };
+  const flushChatCharacters = () => {
+    if (chatCharacterTimer) window.clearTimeout(chatCharacterTimer);
+    chatCharacterTimer = 0;
+    const remaining = pendingChatCharacters.slice(pendingChatCharacterIndex).join("");
+    if (assistantMessage && remaining) {
+      assistantMessage.content += remaining;
+      scheduleStreamPersistence(conversation);
+      scheduleMessageScrollToLatest(conversation);
+    }
+    pendingChatCharacters = [];
+    pendingChatCharacterIndex = 0;
+    const resolve = resolveChatCharactersDrained;
+    resolveChatCharactersDrained = null;
+    resolve?.();
+  };
+  const waitForChatCharacters = () => {
+    if (!chatCharacterTimer && pendingChatCharacterIndex >= pendingChatCharacters.length) {
+      return Promise.resolve();
+    }
+    return new Promise(resolve => { resolveChatCharactersDrained = resolve; });
+  };
 
   try {
     const response = await fetch(requestUrl("/api/v1/assistant/chat"), {
@@ -897,8 +970,12 @@ async function sendMessage() {
           conversation.messages.push(assistantMessage);
           if (!isChatWorkflow) scheduleMessageScrollToLatest(conversation);
         }
-        pendingStreamDelta += event.content;
-        streamRender.schedule();
+        if (isChatWorkflow) {
+          queueChatCharacters(event.content);
+        } else {
+          pendingStreamDelta += event.content;
+          streamRender.schedule();
+        }
       } else if (event.type === "error") {
         throw new Error(event.detail || "模型生成失败，请稍后重试");
       } else if (event.type === "done") {
@@ -917,8 +994,9 @@ async function sendMessage() {
       if (done) break;
     }
     if (pending.trim()) consumeLine(pending.replace(/\r$/, ""));
-    streamRender.flush();
     if (!streamFinished) throw new Error("模型连接中断，请重试");
+    if (isChatWorkflow) await waitForChatCharacters();
+    else streamRender.flush();
     if (!assistantMessage?.content) throw new Error("模型没有返回正文，请调整要求后重试");
     documentStreamRender.cancel();
     assistantMessage.status = "complete";
@@ -938,6 +1016,7 @@ async function sendMessage() {
     }
     if (assistantState.activeId === conversation.id) scrollToLatest("smooth", true);
   } catch (error) {
+    flushChatCharacters();
     streamRender.flush();
     documentStreamRender.flush();
     const errorMessage = error?.message || "请求失败，请稍后重试";
