@@ -661,15 +661,6 @@ app.add_middleware(
     rate_limit_detail="AI 请求过于频繁，请稍后再试",
     busy_detail="AI 助手当前较忙，请稍后重试",
 )
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=False,
-    allow_methods=["*"],
-    allow_headers=["*"],
-    expose_headers=["Retry-After", "X-Conversion-ID", "X-Error-Code"],
-)
-
 storage = DocumentStorage()
 app.mount("/files", StaticFiles(directory=storage.root), name="files")
 
@@ -3335,3 +3326,16 @@ async def export_edited_document(
         ),
         source_image_url=source_image_url,
     )
+
+
+# Keep CORS outside FastAPI's ServerErrorMiddleware so even unhandled 500
+# responses carry CORS headers and the browser can display the real error.
+app = CORSMiddleware(
+    app=app,
+    allow_origins=["*"],
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+    expose_headers=["Retry-After", "X-Conversion-ID", "X-Error-Code"],
+)
+
