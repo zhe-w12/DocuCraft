@@ -1,6 +1,6 @@
-# DocuCraft OCR 服务
+# DocuCraft OCR service
 
-这是与 DocuCraft 后端分开部署的 Tesseract OCR HTTP 服务。它只从图片识别文字和位置，不生成解题步骤或答案，也不会调用 Remedi、百炼或其他在线 AI 服务。服务在 Docker 中运行，宿主机只把它绑定到 `127.0.0.1:5100`。
+这是与 DocuCraft 后端分开部署的纯 OCR HTTP 服务。服务使用 RapidOCR 的 PP-OCRv6 small 中文模型和 ONNX Runtime 在 CPU 上识别图片文字与位置；不会生成、润色或补写原文，也不会调用百炼、Remedi 或其他在线 AI 服务。
 
 ## 服务器部署
 
@@ -21,7 +21,7 @@ docker compose ps
 curl -i http://127.0.0.1:5100/health
 ```
 
-服务首次构建时会安装 Tesseract、简体中文和英文识别数据。镜像使用 Python 3.11 slim 与 Debian 系统包，可在服务器的 ARM64 架构上构建。
+镜像使用 Python 3.11 slim。RapidOCR wheel 内包含 PP-OCRv6 small 的检测、方向分类和文字识别模型，首次构建会通过 pip 安装依赖；服务运行时在本机 CPU 上推理。启动预热完成后健康检查会返回 `engine: rapidocr` 和 `model: PP-OCRv6-small`。
 
 ## 配置 DocuCraft 后端
 
@@ -37,11 +37,11 @@ OCR_API_KEY=填入同一个随机密钥
 
 ## 接口
 
-- `GET /health`：返回服务状态、OCR 引擎和启用的语言。
+- `GET /health`：返回服务状态、OCR 引擎和模型。
 - `POST /ocr`：需要 `Authorization: Bearer <OCR_API_KEY>`，通过 multipart 字段 `image` 上传图片。
-- 成功返回识别段落、文字框坐标及低置信度提示，兼容 DocuCraft 的 `generic_http` 适配器。
+- 成功返回识别段落、文字框坐标和置信度提示，兼容 DocuCraft 的 `generic_http` 适配器。
 
-简体中文与英文是默认识别语言。可以在 `.env` 中把 `OCR_LANG` 改为 Tesseract 已安装的数据组合，例如 `eng`。扩大图片大小、像素数、超时或并发量前，应结合服务器内存和 CPU 实测。表格边框与单元格结构不由此服务识别；拍照歪斜、手写文字或复杂版面需要人工校对。
+清晰、正向的印刷体图片通常识别效果较好。手写内容、模糊或倾斜照片、低分辨率图像和复杂表格仍可能识别不准；低置信度结果应对照原图校对。服务仅识别图像中实际出现的文字，不会用语言模型猜测或改写。
 
 ## 更新和排错
 
@@ -49,7 +49,8 @@ OCR_API_KEY=填入同一个随机密钥
 
 ```sh
 docker compose up -d --build
+docker compose ps
 docker compose logs --tail=100 docucraft-ocr
 ```
 
-日志只记录服务启动和请求错误，不记录 API 密钥或上传图像内容。若容器未启动，先查看日志中的 Tesseract 语言包或密钥配置错误。
+日志只记录服务启动和请求错误，不记录 API 密钥或上传图像内容。若容器未启动，检查模型初始化错误、容器架构和 OCR 密钥配置。

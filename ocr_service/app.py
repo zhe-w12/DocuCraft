@@ -3,15 +3,16 @@ from __future__ import annotations
 import asyncio
 import hmac
 import os
-from collections import OrderedDict
+from collections.abc import Iterable
 from contextlib import asynccontextmanager
 from io import BytesIO
+from math import isfinite
+from statistics import median
 from typing import Any
 
-import pytesseract
 from fastapi import FastAPI, File, Header, HTTPException, UploadFile
-from PIL import Image, UnidentifiedImageError
-from pytesseract import Output
+from PIL import Image, ImageDraw, UnidentifiedImageError
+from rapidocr import EngineType, ModelType, OCRVersion, RapidOCR
 from starlette.concurrency import run_in_threadpool
 
 
@@ -24,41 +25,115 @@ def _positive_int(name: str, default: int) -> int:
 
 MAX_UPLOAD_BYTES = _positive_int("OCR_MAX_UPLOAD_MB", 20) * 1024 * 1024
 MAX_IMAGE_PIXELS = _positive_int("OCR_MAX_IMAGE_PIXELS", 50_000_000)
-OCR_TIMEOUT_SECONDS = _positive_int("OCR_TIMEOUT_SECONDS", 75)
-OCR_LANGUAGE = os.getenv("OCR_LANG", "chi_sim+eng").strip() or "chi_sim+eng"
-OCR_LANGUAGE_PARTS = [part.strip() for part in OCR_LANGUAGE.split("+") if part.strip()]
 OCR_CONCURRENCY = _positive_int("OCR_CONCURRENCY", 1)
 _ocr_slots = asyncio.Semaphore(OCR_CONCURRENCY)
+_ocr_engine: RapidOCR | None = None
+
+
+def _create_ocr_engine() -> RapidOCR:
+    return RapidOCR(
+        params={
+            "Det.engine_type": EngineType.ONNXRUNTIME,
+            "Det.model_type": ModelType.SMALL,
+            "Det.ocr_version": OCRVersion.PPOCRV6,
+            "Rec.engine_type": EngineType.ONNXRUNTIME,
+            "Rec.model_type": ModelType.SMALL,
+            "Rec.ocr_version": OCRVersion.PPOCRV6,
+        }
+    )
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    global _ocr_engine
     if not os.getenv("OCR_API_KEY", "").strip():
         raise RuntimeError("OCR_API_KEY must be configured before starting the OCR service")
-    if not OCR_LANGUAGE_PARTS or any(
-        not all(character.isalnum() or character in "_.-" for character in language)
-        for language in OCR_LANGUAGE_PARTS
-    ):
-        raise RuntimeError("OCR_LANG contains an invalid language code")
     try:
-        pytesseract.get_tesseract_version()
-        installed_languages = set(pytesseract.get_languages(config=""))
-    except (pytesseract.TesseractNotFoundError, RuntimeError) as exc:
-        raise RuntimeError("Tesseract is missing or could not be started") from exc
-    missing_languages = sorted(set(OCR_LANGUAGE_PARTS) - installed_languages)
-    if missing_languages:
-        raise RuntimeError(
-            "Missing Tesseract language data: " + ", ".join(missing_languages)
-        )
+        _ocr_engine = _create_ocr_engine()
+        # Load and exercise the bundled models before marking the service ready.
+        warmup_image = Image.new("RGB", (160, 48), "white")
+        ImageDraw.Draw(warmup_image).text((12, 12), "OCR", fill="black")
+        await run_in_threadpool(_ocr_engine, warmup_image)
+    except Exception as exc:
+        _ocr_engine = None
+        raise RuntimeError("RapidOCR models could not be initialized") from exc
     yield
+    _ocr_engine = None
 
 
-app = FastAPI(title="DocuCraft OCR Service", version="1.0.0", lifespan=lifespan)
+app = FastAPI(title="DocuCraft OCR Service", version="2.0.0", lifespan=lifespan)
 
 
 @app.get("/health")
 async def health() -> dict[str, str]:
-    return {"status": "ok", "engine": "tesseract", "languages": OCR_LANGUAGE}
+    if _ocr_engine is None:
+        raise HTTPException(status_code=503, detail="OCR engine is not ready")
+    return {
+        "status": "ok",
+        "engine": "rapidocr",
+        "model": "PP-OCRv6-small",
+        "languages": "chinese_simplified+english",
+    }
+
+
+def _flatten_numbers(value: Any) -> Iterable[float]:
+    if hasattr(value, "tolist"):
+        value = value.tolist()
+    if isinstance(value, (list, tuple)):
+        for item in value:
+            yield from _flatten_numbers(item)
+        return
+    yield float(value)
+
+
+def _line_detections(result: Any, width: int, height: int) -> list[dict[str, Any]]:
+    boxes = getattr(result, "boxes", None)
+    texts = getattr(result, "txts", None)
+    scores = getattr(result, "scores", None)
+    if boxes is None or texts is None:
+        return []
+
+    detections: list[dict[str, Any]] = []
+    for index, (raw_text, raw_box) in enumerate(zip(texts, boxes)):
+        text = " ".join(str(raw_text or "").split())
+        if not text:
+            continue
+        try:
+            coordinates = list(_flatten_numbers(raw_box))
+            confidence = float(scores[index]) if scores is not None else 0.0
+        except (IndexError, TypeError, ValueError, OverflowError):
+            continue
+        if not isfinite(confidence) or len(coordinates) < 4:
+            continue
+        if len(coordinates) == 4:
+            x_values = (coordinates[0], coordinates[2])
+            y_values = (coordinates[1], coordinates[3])
+        else:
+            x_values = coordinates[0::2]
+            y_values = coordinates[1::2]
+        if not x_values or not y_values or not all(
+            isfinite(value) for value in (*x_values, *y_values)
+        ):
+            continue
+
+        left = max(0.0, min(x_values))
+        top = max(0.0, min(y_values))
+        right = min(float(width), max(x_values))
+        bottom = min(float(height), max(y_values))
+        if right <= left or bottom <= top:
+            continue
+        detections.append(
+            {
+                "text": text,
+                "left": int(round(left)),
+                "top": int(round(top)),
+                "width": max(int(round(right - left)), 1),
+                "height": max(int(round(bottom - top)), 1),
+                "confidence": max(0.0, min(confidence, 1.0)) * 100,
+            }
+        )
+
+    return sorted(detections, key=lambda item: (item["top"], item["left"]))
 
 
 def _join_line(tokens: list[str]) -> str:
@@ -83,6 +158,27 @@ def _join_line(tokens: list[str]) -> str:
     return result.strip()
 
 
+def _group_paragraphs(detections: list[dict[str, Any]]) -> list[str]:
+    if not detections:
+        return []
+    heights = [float(item["height"]) for item in detections]
+    paragraph_gap = max(6.0, median(heights) * 0.75)
+    groups: list[list[dict[str, Any]]] = []
+    previous_bottom: float | None = None
+    for item in detections:
+        top = float(item["top"])
+        if previous_bottom is None or top - previous_bottom > paragraph_gap:
+            groups.append([])
+        groups[-1].append(item)
+        previous_bottom = max(previous_bottom or 0.0, top + float(item["height"]))
+
+    paragraphs = [
+        _join_line([item["text"] for item in group])
+        for group in groups
+    ]
+    return [paragraph for paragraph in paragraphs if paragraph]
+
+
 def _recognize(image_bytes: bytes) -> dict[str, Any]:
     try:
         with Image.open(BytesIO(image_bytes)) as source:
@@ -96,78 +192,40 @@ def _recognize(image_bytes: bytes) -> dict[str, Any]:
     except (UnidentifiedImageError, OSError, ValueError, Image.DecompressionBombError) as exc:
         raise HTTPException(status_code=400, detail="The uploaded file is not a valid image") from exc
 
+    if _ocr_engine is None:
+        raise RuntimeError("RapidOCR is not initialized")
     try:
-        data = pytesseract.image_to_data(
-            image,
-            lang=OCR_LANGUAGE,
-            config="--oem 1 --psm 6",
-            output_type=Output.DICT,
-            timeout=OCR_TIMEOUT_SECONDS,
-        )
-    except (pytesseract.TesseractError, RuntimeError) as exc:
-        raise RuntimeError("Tesseract OCR failed") from exc
+        result = _ocr_engine(image)
+    except Exception as exc:
+        raise RuntimeError("RapidOCR inference failed") from exc
 
-    paragraph_lines: OrderedDict[tuple[int, int, int], OrderedDict[int, list[str]]] = (
-        OrderedDict()
-    )
-    positioned_words: list[dict[str, Any]] = []
-    confidences: list[float] = []
-    low_confidence_examples: list[str] = []
-
-    for index, raw_text in enumerate(data.get("text", [])):
-        text = " ".join(str(raw_text).split())
-        if not text:
-            continue
-        try:
-            confidence = float(data["conf"][index])
-            page = int(data["page_num"][index])
-            block = int(data["block_num"][index])
-            paragraph = int(data["par_num"][index])
-            line = int(data["line_num"][index])
-            left = int(data["left"][index])
-            top = int(data["top"][index])
-            word_width = int(data["width"][index])
-            word_height = int(data["height"][index])
-        except (KeyError, IndexError, TypeError, ValueError):
-            continue
-        if confidence < 0:
-            continue
-
-        confidences.append(confidence)
-        if confidence < 40 and len(low_confidence_examples) < 5:
-            low_confidence_examples.append(text)
-        paragraph_lines.setdefault((page, block, paragraph), OrderedDict()).setdefault(
-            line, []
-        ).append(text)
-        if word_width > 0 and word_height > 0:
-            positioned_words.append(
-                {
-                    "text": text,
-                    "location": {
-                        "left": left,
-                        "top": top,
-                        "width": word_width,
-                        "height": word_height,
-                    },
-                    "confidence": confidence,
-                }
-            )
-
-    paragraphs = [
-        "\n".join(_join_line(tokens) for tokens in lines.values()).strip()
-        for lines in paragraph_lines.values()
+    detections = _line_detections(result, width, height)
+    paragraphs = _group_paragraphs(detections)
+    confidences = [item["confidence"] for item in detections]
+    average_confidence = sum(confidences) / len(confidences) if confidences else 0.0
+    low_confidence_examples = [
+        item["text"] for item in detections if item["confidence"] < 60
+    ][:5]
+    positioned_words = [
+        {
+            "text": item["text"],
+            "location": {
+                "left": item["left"],
+                "top": item["top"],
+                "width": item["width"],
+                "height": item["height"],
+            },
+            "confidence": item["confidence"],
+        }
+        for item in detections
     ]
-    paragraphs = [paragraph for paragraph in paragraphs if paragraph]
-    average_confidence = (
-        sum(confidences) / len(confidences) if confidences else 0.0
-    )
     return {
         "text": "\n\n".join(paragraphs),
         "paragraphs": paragraphs,
         "positioned_words": positioned_words,
         "image_width": width,
         "image_height": height,
-        "low_text_confidence": bool(confidences) and average_confidence < 60,
+        "low_text_confidence": bool(confidences) and average_confidence < 70,
         "low_confidence_examples": low_confidence_examples,
     }
 
