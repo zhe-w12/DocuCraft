@@ -1376,4 +1376,3 @@ onBeforeUnmount(() => {
     :profile-id="assistantMemoryProfileId"
   />
 </template>
-
