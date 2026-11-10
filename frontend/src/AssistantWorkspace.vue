@@ -804,6 +804,10 @@ async function sendMessage() {
     inlineError.value = "AI 模型还未接入。请在后端环境配置中设置模型 API，然后重启后端。";
     return;
   }
+  if (webSearchEnabled.value && !assistantState.status.webSearchConfigured) {
+    inlineError.value = "联网搜索尚未配置。请在后端环境设置 TAVILY_API_KEY 后重启后端。";
+    return;
+  }
 
   const conversation = activeConversation.value || createConversation(assistantState.mode);
   const writingApprovedPlan = Boolean(conversation.planWriting);
@@ -1124,8 +1128,9 @@ onBeforeUnmount(() => {
           <div class="assistant-composer-footer">
             <div class="assistant-composer-options">
               <label class="assistant-mode-select"><span>工作流</span><select v-model="assistantState.mode" :disabled="sending" aria-label="选择写作工作流"><option v-for="option in MODE_OPTIONS" :key="option.id" :value="option.id">{{ option.label }}</option></select></label>
-              <label class="assistant-web-search" :title="assistantState.status.webSearchConfigured ? '使用 Tavily 搜索互联网' : '请先在后端配置 TAVILY_API_KEY'"><input v-model="webSearchEnabled" type="checkbox" :disabled="sending || !assistantState.status.webSearchConfigured" /><span>联网搜索</span></label>
-              <small v-if="webSearchEnabled" class="assistant-web-search-hint">搜索词会发送给 Tavily</small>
+              <label class="assistant-web-search" :title="assistantState.status.webSearchConfigured ? '使用 Tavily 搜索互联网' : '需先在后端配置 TAVILY_API_KEY'"><input v-model="webSearchEnabled" type="checkbox" :disabled="sending" /><span>联网搜索</span></label>
+              <small v-if="webSearchEnabled && assistantState.status.webSearchConfigured" class="assistant-web-search-hint">搜索词会发送给 Tavily</small>
+              <small v-else-if="webSearchEnabled" class="assistant-web-search-hint">需配置 TAVILY_API_KEY 后才能搜索</small>
             </div>
             <div class="assistant-send-area"><small>Enter 发送 · Shift + Enter 换行</small><button class="assistant-send-button" type="button" :disabled="!draft.trim() || sending || assistantState.status.loading" :aria-label="sending ? (requestBelongsToActiveConversation ? '生成中' : '等待另一条对话完成') : '开始生成'" @click="sendMessage">{{ sending ? (requestBelongsToActiveConversation ? "生成中…" : "等待中…") : "开始生成 ↑" }}</button></div>
           </div>
@@ -1274,8 +1279,9 @@ onBeforeUnmount(() => {
           <div class="assistant-composer-footer">
             <div class="assistant-composer-options">
               <label class="assistant-mode-select"><span>工作流</span><select v-model="assistantState.mode" :disabled="sending" aria-label="选择写作工作流"><option v-for="option in MODE_OPTIONS" :key="option.id" :value="option.id">{{ option.label }}</option></select></label>
-              <label class="assistant-web-search" :title="assistantState.status.webSearchConfigured ? '使用 Tavily 搜索互联网' : '请先在后端配置 TAVILY_API_KEY'"><input v-model="webSearchEnabled" type="checkbox" :disabled="sending || !assistantState.status.webSearchConfigured" /><span>联网搜索</span></label>
-              <small v-if="webSearchEnabled" class="assistant-web-search-hint">搜索词会发送给 Tavily</small>
+              <label class="assistant-web-search" :title="assistantState.status.webSearchConfigured ? '使用 Tavily 搜索互联网' : '需先在后端配置 TAVILY_API_KEY'"><input v-model="webSearchEnabled" type="checkbox" :disabled="sending" /><span>联网搜索</span></label>
+              <small v-if="webSearchEnabled && assistantState.status.webSearchConfigured" class="assistant-web-search-hint">搜索词会发送给 Tavily</small>
+              <small v-else-if="webSearchEnabled && !assistantState.status.loading" class="assistant-web-search-hint">需配置 TAVILY_API_KEY 后才能搜索</small>
               <small v-else-if="!assistantState.status.loading && !assistantState.status.webSearchConfigured" class="assistant-web-search-hint">需配置 TAVILY_API_KEY</small>
               <button class="assistant-memory-button" type="button" @click="openMemoryManager">长期记忆</button>
             </div>
