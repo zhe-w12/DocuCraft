@@ -69,5 +69,15 @@ export default defineConfig({
   plugins: [vue(), buildVersionPlugin()],
   server: { host: "127.0.0.1" },
   preview: { host: "127.0.0.1" },
-  build: { outDir: "dist" },
+  build: {
+    outDir: "dist",
+    rolldownOptions: {
+      output: {
+        assetFileNames: asset =>
+          asset.names.some(name => name === "pdf.worker.min.mjs")
+            ? "assets/[name]-[hash].js"
+            : "assets/[name]-[hash][extname]",
+      },
+    },
+  },
 });
